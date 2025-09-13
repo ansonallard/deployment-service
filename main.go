@@ -12,6 +12,7 @@ import (
 	"github.com/ansonallard/deployment-service/internal/middleware/authz"
 	"github.com/ansonallard/deployment-service/internal/middleware/openapi"
 	irequest "github.com/ansonallard/deployment-service/internal/request"
+	"github.com/ansonallard/deployment-service/internal/service"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/gin-gonic/gin"
@@ -57,10 +58,14 @@ func main() {
 	ginRouter.Use(gin.Recovery())
 	ginRouter.Use(openapi.ValidationMiddleware(router, authZMiddleware.AuthorizeCaller))
 
-	topLevelStruct := controllers.NewDeploymentControllers()
+	deploymentService := service.NewDeploymentService()
+
+	deploymentServiceController := controllers.NewDeploymentServiceController(controllers.DeploymentServiceControllerConfig{
+		Service: deploymentService,
+	})
 
 	// Validate that top level struct contains all required OpenAPI operation IDs
-	if err = openapi.ValidateStructAndOpenAPI(openAPISpec, topLevelStruct); err != nil {
+	if err = openapi.ValidateStructAndOpenAPI(openAPISpec, deploymentServiceController); err != nil {
 		log.Panic(err)
 	}
 
@@ -77,7 +82,7 @@ func main() {
 			return
 		}
 
-		topLevelStructReflected := reflect.ValueOf(topLevelStruct)
+		topLevelStructReflected := reflect.ValueOf(deploymentServiceController)
 		method := topLevelStructReflected.MethodByName(openapi.ConvertOperationIdToPascalCase(route.Operation.OperationID))
 
 		iRequest := irequest.NewRequest(&irequest.RequestConfig{

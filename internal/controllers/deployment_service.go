@@ -4,32 +4,52 @@ import (
 	"context"
 
 	"github.com/ansonallard/deployment-service/internal/api"
+	"github.com/ansonallard/deployment-service/internal/model"
 	"github.com/ansonallard/deployment-service/internal/request"
+	"github.com/ansonallard/deployment-service/internal/service"
 )
 
-type DeploymentControllers interface {
-	CreateService(ctx context.Context, request request.Request) (api.CreateServiceResponse, error)
+type DeploymentServiceController interface {
+	CreateService(ctx context.Context, request request.Request) (*api.CreateServiceResponse, error)
 	GetService(ctx context.Context, request request.Request) error
 	ListServices(ctx context.Context, request request.Request) error
 }
 
-type deploymentController struct{}
-
-func NewDeploymentControllers() DeploymentControllers {
-	return &deploymentController{}
+type DeploymentServiceControllerConfig struct {
+	Service service.DeploymentService
 }
 
-func (ds *deploymentController) CreateService(ctx context.Context, request request.Request) (api.CreateServiceResponse, error) {
-	return api.CreateServiceResponse{
-		Service: api.Service{
-			Id: "01234567890123456789012345",
-		},
-	}, nil
+type deploymentServiceController struct {
+	service service.DeploymentService
 }
-func (ds *deploymentController) GetService(ctx context.Context, request request.Request) error {
+
+func NewDeploymentServiceController(config DeploymentServiceControllerConfig) DeploymentServiceController {
+	if config.Service == nil {
+		panic("service not set")
+	}
+	return &deploymentServiceController{
+		service: config.Service,
+	}
+}
+
+func (ds *deploymentServiceController) CreateService(ctx context.Context, request request.Request) (*api.CreateServiceResponse, error) {
+	service := new(model.Service)
+	if err := service.FromCreateRequest(request); err != nil {
+		return nil, err
+	}
+
+	// TODO: Business logic
+
+	responseDto := new(api.CreateServiceResponse)
+	if err := service.ToExternal(responseDto); err != nil {
+		return nil, err
+	}
+	return responseDto, nil
+}
+func (ds *deploymentServiceController) GetService(ctx context.Context, request request.Request) error {
 	return nil
 }
 
-func (ds *deploymentController) ListServices(ctx context.Context, request request.Request) error {
+func (ds *deploymentServiceController) ListServices(ctx context.Context, request request.Request) error {
 	return nil
 }

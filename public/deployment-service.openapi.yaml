@@ -166,13 +166,15 @@ components:
       type: string
       pattern: ^git@.+\.git$
     Service:
-      type: object
-      additionalProperties: false
-      required:
-      - id
-      properties:
-        id:
-          $ref: "#/components/schemas/ID"
+      allOf:
+        - type: object
+          additionalProperties: false
+          required:
+            - id
+          properties:
+            id:
+              $ref: "#/components/schemas/ID"
+        # - $ref: "#/components/schemas/ServiceInput"
     ID:
       type: string
       description: Resource ID - ULID
@@ -299,9 +301,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/CreateServiceResponse"
+      headers:
+        ETag:
+          $ref: "#/components/headers/ETag"
   headers:
     ETag:
-      required: true
+      # required: true
       description: The version of the resource you requested
       schema:
         $ref: "#/components/schemas/Version"

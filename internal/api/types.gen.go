@@ -42,12 +42,13 @@ type EnvPath = string
 
 // GitConfiguration defines model for GitConfiguration.
 type GitConfiguration struct {
-	union json.RawMessage
+	SshUrl *SSHUrl `json:"sshUrl,omitempty"`
+	union  json.RawMessage
 }
 
 // GitSSHURL defines model for GitSSHURL.
 type GitSSHURL struct {
-	SshUrl string `json:"sshUrl"`
+	SshUrl SSHUrl `json:"sshUrl"`
 }
 
 // ID Resource ID - ULID
@@ -60,8 +61,18 @@ type NPMConfiguration struct {
 
 // NPMConfigurationChoices defines model for NPMConfigurationChoices.
 type NPMConfigurationChoices struct {
-	union json.RawMessage
+	Library *NPMLibraryConfiguration `json:"library,omitempty"`
+	Service *NPMServiceConfiguration `json:"service,omitempty"`
+	union   json.RawMessage
 }
+
+// NPMLibrary defines model for NPMLibrary.
+type NPMLibrary struct {
+	Library NPMLibraryConfiguration `json:"library"`
+}
+
+// NPMLibraryConfiguration defines model for NPMLibraryConfiguration.
+type NPMLibraryConfiguration = map[string]interface{}
 
 // NPMService defines model for NPMService.
 type NPMService struct {
@@ -83,6 +94,9 @@ type NPMServiceConfiguration struct {
 // Name Service Name
 type Name = string
 
+// SSHUrl defines model for SSHUrl.
+type SSHUrl = string
+
 // Service defines model for Service.
 type Service struct {
 	// Id Resource ID - ULID
@@ -91,6 +105,7 @@ type Service struct {
 
 // ServiceConfiguration defines model for ServiceConfiguration.
 type ServiceConfiguration struct {
+	Npm   *NPMConfigurationChoices `json:"npm,omitempty"`
 	union json.RawMessage
 }
 
@@ -102,6 +117,9 @@ type ServiceInput struct {
 	// Name Service Name
 	Name Name `json:"name"`
 }
+
+// Version defines model for Version.
+type Version = string
 
 // BadRequest defines model for BadRequest.
 type BadRequest struct {
@@ -164,11 +182,45 @@ func (t *GitConfiguration) MergeGitSSHURL(v GitSSHURL) error {
 
 func (t GitConfiguration) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if t.SshUrl != nil {
+		object["sshUrl"], err = json.Marshal(t.SshUrl)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'sshUrl': %w", err)
+		}
+	}
+	b, err = json.Marshal(object)
 	return b, err
 }
 
 func (t *GitConfiguration) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["sshUrl"]; found {
+		err = json.Unmarshal(raw, &t.SshUrl)
+		if err != nil {
+			return fmt.Errorf("error reading 'sshUrl': %w", err)
+		}
+	}
+
 	return err
 }
 
@@ -198,13 +250,87 @@ func (t *NPMConfigurationChoices) MergeNPMService(v NPMService) error {
 	return err
 }
 
+// AsNPMLibrary returns the union data inside the NPMConfigurationChoices as a NPMLibrary
+func (t NPMConfigurationChoices) AsNPMLibrary() (NPMLibrary, error) {
+	var body NPMLibrary
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromNPMLibrary overwrites any union data inside the NPMConfigurationChoices as the provided NPMLibrary
+func (t *NPMConfigurationChoices) FromNPMLibrary(v NPMLibrary) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeNPMLibrary performs a merge with any union data inside the NPMConfigurationChoices, using the provided NPMLibrary
+func (t *NPMConfigurationChoices) MergeNPMLibrary(v NPMLibrary) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t NPMConfigurationChoices) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if t.Library != nil {
+		object["library"], err = json.Marshal(t.Library)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'library': %w", err)
+		}
+	}
+
+	if t.Service != nil {
+		object["service"], err = json.Marshal(t.Service)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'service': %w", err)
+		}
+	}
+	b, err = json.Marshal(object)
 	return b, err
 }
 
 func (t *NPMConfigurationChoices) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["library"]; found {
+		err = json.Unmarshal(raw, &t.Library)
+		if err != nil {
+			return fmt.Errorf("error reading 'library': %w", err)
+		}
+	}
+
+	if raw, found := object["service"]; found {
+		err = json.Unmarshal(raw, &t.Service)
+		if err != nil {
+			return fmt.Errorf("error reading 'service': %w", err)
+		}
+	}
+
 	return err
 }
 
@@ -236,33 +362,69 @@ func (t *ServiceConfiguration) MergeNPMConfiguration(v NPMConfiguration) error {
 
 func (t ServiceConfiguration) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if t.Npm != nil {
+		object["npm"], err = json.Marshal(t.Npm)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'npm': %w", err)
+		}
+	}
+	b, err = json.Marshal(object)
 	return b, err
 }
 
 func (t *ServiceConfiguration) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["npm"]; found {
+		err = json.Unmarshal(raw, &t.Npm)
+		if err != nil {
+			return fmt.Errorf("error reading 'npm': %w", err)
+		}
+	}
+
 	return err
 }
 
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/8RXbW/bNhD+K8Kt38bYTpoNmD+tjbvOWJIZ8QIUSDOAlc42W4nUSNqoV+i/F0fqxZZk",
-	"yS5a+Jte7h4+d3zuyPsCoUpSJVFaA+MvoNGkShp0L6959ID/rdFYeguVtCjdI0/TWITcCiWHH42S9M2E",
-	"K0w4PaVapait8CAJGsOXSI92myKMwVgt5BKyjBVf1IePGFrI6FOEJtQiJWwYE4VA5xwyBjdKLmIRno/P",
-	"Axq11iEGYcGEWGnkFueoNyLEhzyDJ1F8oXEBY/hpWO3G0P81w3b0Fm7eMMgtg8qUwR9KfxBRhPJsiasY",
-	"ZAym0qKWPCaqqN9orfTZiBVcAk8m8GwyBv8odcflNq8AczaCdR4Zg0f5am1XSov/MTobr3tlgx0aZJBL",
-	"lgBrqi27CI8iQQA8nu1wWfDYIKvRM965rz7yNaYyXVvHgvqF0JSZpxLjuRFQR9n+MI4n0Zuo8BPqGwIz",
-	"OON2RYvsbwF9DawKImd6EXrbYCFiDIQMCnRW394CnAy7kSu7Y1DfyE033ADl5higt8JSqxfLteYeomdX",
-	"lMS/FzB+6t6Gt8LO538+PtxC1pbx6veJIjCrRx27+uKWugmM4d+lsL8Pfn7/frAU9kUzxroQPEQbq+mk",
-	"mc/yGJpOgovg8XY6AQYJ/3yLckn5v/qVQSLk7msjx/ezu9NyvB+0TJM+1ddXuFkpEaJpBE9QbZEf8v8+",
-	"Yrif3ZVleWD1eVXd378nVPj723BKjziEcRrhqK3TdFFvtiY6HRotpR+itM4YYNU8uhyLHlNPU+HeIMJa",
-	"4mvNJU+wWWnFbcr9bamib5OIiPrCnE4aEYqolfc3CeDoEqlps4OAP4BPy0NYJ33EIVpjxGApbJ9r4zzJ",
-	"GMh8vzsTQDaNduWlQMuyWgTN9NCtCMO1FnY7J1Af96vZ9C/cOiWQyFbII9RQcILPFzwVF59wWymOp4I8",
-	"3D1MyIVylzZhY/o3wTRW2wSlLS//d4mKMAYGG9TGK3k0uByMKHCVouSpgDG8HIwGV8Do2Fo5XsO82biX",
-	"VPkrG22YC28alVPGvDy78+nstYq2P2rkyce/zG/EzoB6NRodgirtDs1PDK6P8d6ZgZ3LZb/L3u3cOb3s",
-	"d9qbj65Hvx0R184Een11hEPLIPHLu3f9fm3T2q6uXRspFP307HoEXxoqlXkhp+fMexCCcQ5rujHBcHMJ",
-	"2XP2NQAA//8/ZQMvhxAAAA==",
+	"H4sIAAAAAAAC/8RYbW8itxP/Kqv537u/AySXViqvmoT0DjVJUUiqSDkqObsD+LrYe7ZBpdF+92r2CVg7",
+	"u6C7iFfssjO/+c2DZ2y/QqgWiZIorYH+K8yRR6izx+sHPqPfCE2oRWKFktCHhzkGK9RGKBmoaWDnGGg0",
+	"aqlDDNZqGWj8tkRjMQIGJpzjghPGB41T6MP/uhtr3fyr6f6Zo0Gapgw0mkRJgxmDSx7d53D0FippUWaP",
+	"PEliEXKi1P1qiNfrlrFEqwS1FTnIAo3hM6RHu04Q+mCsFnIGZK74R718xdDmDHbdveRR6RKkDK6UnMYi",
+	"PB6f+zLWYcmEWGnkFseoVyLE+yKCB1Fsyo8f3cMtFwwKyaASZb6q8lksxLqZTGbgN6VfRBShPFrANwxS",
+	"BkNpUUsek4uor7VW+mjESi5BTibI2aQMHpS65XJdrBxzNIJ1HimDR3mxtHOlxb8YHY3XnbLBFg0SKEqd",
+	"AGvVXnUfHkWCAHg82uIy5bFBVqNncuW2dVXYGMpkaSHvfd+WQlNkniuMieNQw3J/N44H0Ruo8G/UVwRm",
+	"cMTt3B0i9G9gVRBloidhLhtMRYyBkEGJzurpLcFJsBl5I7cP6rVcNcN1UK72AfokLI0IMVtqnkO0ZEVJ",
+	"/GMK/efmNHwSdjz+/Hh/A+nEyaSZP+q4NZHjzyTlWSAZ6QL9wBo61PJOBeXKvgIaDtxEVHNvOAhOgseb",
+	"4QAYLPg/NyhnlLiznxkshNx+dZJzN7o9LDm77spk0eZr3cLVXIkQjeM8Qfk8f0v/x1TR3ei2Ws+sVfRG",
+	"vGiu156Ki4sv/X0xdqNO/Xa/7rMhXENI/bG72RA7IK/f604ttyXcpJGjU4g+2fEmTD++tTcFd99W/xbG",
+	"YYQj38Boou5OGBryzmRoh6ikUwa4mQFNiuWoqIepVHeIMI9/3ljyBbp9r9xMZ189Pa3orrRF4pY2hNCH",
+	"v2bC/tr5/5cvnZmwH7xaW4UVx0XrOCBjImoL03DgREhEHr8nGzbvMTidlu92s+9s604ed7Z1hy2EsB6B",
+	"PbZmTm+dCdum6uxSUgayKL/GOJCMM8vyyiSzrOaBr8zL0753724wXGph12MymMfkYjT8HbPmLKi28yMi",
+	"lHzh6eQiESckUdniiaD3bOcv5FRlpoSN6dsAk1itFyhtdUy9XagIY2CwKplBr3Pa6RFZlaDkiYA+fOz0",
+	"OmfAaJXNM17doi9mL4nKDwmUzMz1YVSdh8fVbrG4R7hU0fq9DufFRYV7lXLW670FVcm9ddJncL6P9tZt",
+	"TaZy2q6ycx7MlD62K+2cyM97v+zh19ZdyfnZHgqeo+tPT0/ter77ge26zvpVWdHPE2pGls8MLaNxWU6T",
+	"NC12SNmNyfMrLKnBQ3d1Su3yvwAAAP//jmvaA7ETAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
