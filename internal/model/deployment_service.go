@@ -44,8 +44,7 @@ func (s *Service) FromCreateRequest(req request.Request) error {
 	s.Name = servceInputDto.Service.Name
 
 	var gitSshUrl api.GitSSHURL
-	gitSshUrl, err = servceInputDto.Service.Git.AsGitSSHURL()
-	if err != nil {
+	if gitSshUrl, err = servceInputDto.Service.Git.AsGitSSHURL(); err != nil {
 		return err
 	}
 
@@ -53,13 +52,23 @@ func (s *Service) FromCreateRequest(req request.Request) error {
 
 	s.ID = utils.GenerateUlidString()
 
+	var npmConfiguration api.NPMConfiguration
+	if npmConfiguration, err = servceInputDto.Service.Configuration.AsNPMConfiguration(); err != nil {
+		return err
+	}
+
+	var npmServiceConfiguration api.NPMService
+	if npmServiceConfiguration, err = npmConfiguration.Npm.AsNPMService(); err != nil {
+		return err
+	}
+
 	s.Configuration = ServiceConfiguration{
 		Npm: &NpmConfiguration{
 			Service: &NpmServiceConfiguration{
 				ServieConfiguration{
-					EnvPath:           servceInputDto.Service.Configuration.Npm.Service.EnvPath,
-					DockerfilePath:    servceInputDto.Service.Configuration.Npm.Service.DockerfilePath,
-					DockerComposePath: servceInputDto.Service.Configuration.Npm.Service.DockerComposePath,
+					EnvPath:           npmServiceConfiguration.Service.EnvPath,
+					DockerfilePath:    npmServiceConfiguration.Service.DockerfilePath,
+					DockerComposePath: npmServiceConfiguration.Service.DockerComposePath,
 				},
 			},
 		},
@@ -69,19 +78,26 @@ func (s *Service) FromCreateRequest(req request.Request) error {
 
 func (s *Service) ToExternal(res *api.CreateServiceResponse) error {
 	res.Service.Id = s.ID
-	// res.Service.Name = s.Name
-	// res.Service.Git = api.GitConfiguration{
-	// 	SshUrl: &s.GitSSHUrl,
-	// }
-	// res.Service.Configuration = api.ServiceConfiguration{
-	// 	Npm: &api.NPMConfigurationChoices{
-	// 		Service: &api.NPMServiceConfiguration{
-	// 			DockerComposePath: s.Configuration.Npm.Service.DockerComposePath,
-	// 			DockerfilePath:    s.Configuration.Npm.Service.DockerfilePath,
-	// 			EnvPath:           s.Configuration.Npm.Service.EnvPath,
-	// 		},
-	// 	},
-	// }
+	res.Service.Name = s.Name
+	res.Service.Git = api.GitConfiguration{}
+	if err := res.Service.Git.FromGitSSHURL(api.GitSSHURL{
+		SshUrl: s.GitSSHUrl,
+	}); err != nil {
+		return err
+	}
+
+	npmConfiguration := api.NPMConfigurationChoices{}
+	npmConfiguration.FromNPMService(api.NPMService{
+		Service: api.NPMServiceConfiguration{
+			DockerComposePath: s.Configuration.Npm.Service.DockerComposePath,
+			DockerfilePath:    s.Configuration.Npm.Service.DockerfilePath,
+			EnvPath:           s.Configuration.Npm.Service.EnvPath,
+		},
+	})
+	res.Service.Configuration = api.ServiceConfiguration{}
+	res.Service.Configuration.FromNPMConfiguration(api.NPMConfiguration{
+		Npm: npmConfiguration,
+	})
 	return nil
 }
 

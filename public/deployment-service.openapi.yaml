@@ -67,15 +67,11 @@ components:
           $ref: "#/components/schemas/ServiceConfiguration"
     ServiceConfiguration:
       type: object
-      additionalProperties: false
       oneOf:
       - $ref: "#/components/schemas/NPMConfiguration"
       # - $ref: "#/components/schemas/GoConfiguration"
       # - $ref: "#/components/schemas/OpenAPIConfiguration"
       # - $ref: "#/components/schemas/NginxConfiguration"
-      properties:
-        npm:
-          $ref: "#/components/schemas/NPMConfigurationChoices"
     NPMConfiguration:
       type: object
       additionalProperties: false
@@ -86,15 +82,9 @@ components:
           $ref: "#/components/schemas/NPMConfigurationChoices"
     NPMConfigurationChoices:
       type: object
-      additionalProperties: false
       oneOf:
       - $ref: "#/components/schemas/NPMService"
       - $ref: "#/components/schemas/NPMLibrary"
-      properties:
-        service:
-          $ref: "#/components/schemas/NPMServiceConfiguration"
-        library:
-          $ref: "#/components/schemas/NPMLibraryConfiguration"
     NPMService:
       type: object
       additionalProperties: false
@@ -147,13 +137,8 @@ components:
       additionalProperties: false
     GitConfiguration:
       type: object
-      additionalProperties: false
       oneOf:
         - $ref: "#/components/schemas/GitSSHURL"
-      properties:
-        sshUrl:
-          sshUrl:
-          $ref: "#/components/schemas/SSHUrl"
     GitSSHURL:
       type: object
       additionalProperties: false
@@ -166,15 +151,22 @@ components:
       type: string
       pattern: ^git@.+\.git$
     Service:
-      allOf:
-        - type: object
-          additionalProperties: false
-          required:
-            - id
-          properties:
-            id:
-              $ref: "#/components/schemas/ID"
-        # - $ref: "#/components/schemas/ServiceInput"
+        type: object
+        required:
+          - id
+          - name
+          - git
+          - configuration
+        additionalProperties: false
+        properties:
+          id:
+            $ref: "#/components/schemas/ID"
+          name:
+            $ref: "#/components/schemas/Name"
+          git:
+            $ref: "#/components/schemas/GitConfiguration"
+          configuration:
+            $ref: "#/components/schemas/ServiceConfiguration"
     ID:
       type: string
       description: Resource ID - ULID
