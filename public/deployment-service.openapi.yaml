@@ -1,0 +1,312 @@
+openapi: 3.0.2
+info:
+  title: Deployment Service Mmodel
+  version: 0.1.0
+servers:
+  - url: /v1
+paths:
+  /services:
+    post:
+      security:
+      - APIKey: []
+      tags:
+      - Services
+      operationId: CreateService
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateServiceRequest"
+      responses:
+        200:
+          $ref: "#/components/responses/CreateServiceResponse"
+        400:
+          $ref: "#/components/responses/BadRequest"
+        401:
+          $ref: "#/components/responses/UnAuthorized"
+        403:
+          $ref: "#/components/responses/Forbidden"
+        409:
+          $ref: "#/components/responses/Conflict"
+        429:
+          $ref: "#/components/responses/TooManyRequests"
+        5XX:
+          $ref: "#/components/responses/InternalServerError"
+components:
+  schemas:
+    CreateServiceRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - service
+      properties:
+        service:
+          $ref: "#/components/schemas/ServiceInput"
+    CreateServiceResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - service
+      properties:
+        service:
+          $ref: "#/components/schemas/Service"
+    ServiceInput:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - git
+        - configuration
+      properties:
+        name:
+          $ref: "#/components/schemas/Name"
+          required: true
+        git:
+          $ref: "#/components/schemas/GitConfiguration"
+        configuration:
+          $ref: "#/components/schemas/ServiceConfiguration"
+    ServiceConfiguration:
+      type: object
+      additionalProperties: false
+      oneOf:
+      - $ref: "#/components/schemas/NPMConfiguration"
+      # - $ref: "#/components/schemas/GoConfiguration"
+      # - $ref: "#/components/schemas/OpenAPIConfiguration"
+      # - $ref: "#/components/schemas/NginxConfiguration"
+      properties:
+        npm:
+          $ref: "#/components/schemas/NPMConfigurationChoices"
+    NPMConfiguration:
+      type: object
+      additionalProperties: false
+      required:
+      - npm
+      properties:
+        npm:
+          $ref: "#/components/schemas/NPMConfigurationChoices"
+    NPMConfigurationChoices:
+      type: object
+      additionalProperties: false
+      oneOf:
+      - $ref: "#/components/schemas/NPMService"
+      - $ref: "#/components/schemas/NPMLibrary"
+      properties:
+        service:
+          $ref: "#/components/schemas/NPMServiceConfiguration"
+        library:
+          $ref: "#/components/schemas/NPMLibraryConfiguration"
+    NPMService:
+      type: object
+      additionalProperties: false
+      required:
+      - service
+      properties:
+        service:
+          $ref: "#/components/schemas/NPMServiceConfiguration"
+    NPMServiceConfiguration:
+      type: object
+      additionalProperties: false
+      required:
+        - envPath
+        - dockerfilePath
+        - dockerComposePath
+      properties:
+        envPath:
+          $ref: "#/components/schemas/EnvPath"
+        dockerfilePath:
+          $ref: "#/components/schemas/DockerfilePath"
+        dockerComposePath:
+          $ref: "#/components/schemas/DockerComposePath"
+    EnvPath:
+      type: string
+      description: Path to .env file in service
+    DockerfilePath:
+      type: string
+      description: Path to Dockerfile file in service
+    DockerComposePath:
+      type: string
+      description: Path to docker-compose file in service
+    NPMLibrary:
+      type: object
+      additionalProperties: false
+      required:
+      - library
+      properties:
+        library:
+          $ref: "#/components/schemas/NPMLibraryConfiguration"
+    NPMLibraryConfiguration:
+      type: object
+    GoConfiguration:
+      type: object
+      additionalProperties: false
+    OpenAPIConfiguration:
+      type: object
+      additionalProperties: false
+    NginxConfiguration:
+      type: object
+      additionalProperties: false
+    GitConfiguration:
+      type: object
+      additionalProperties: false
+      oneOf:
+        - $ref: "#/components/schemas/GitSSHURL"
+      properties:
+        sshUrl:
+          sshUrl:
+          $ref: "#/components/schemas/SSHUrl"
+    GitSSHURL:
+      type: object
+      additionalProperties: false
+      required:
+      - sshUrl
+      properties:
+        sshUrl:
+          $ref: "#/components/schemas/SSHUrl"
+    SSHUrl:
+      type: string
+      pattern: ^git@.+\.git$
+    Service:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      properties:
+        id:
+          $ref: "#/components/schemas/ID"
+    ID:
+      type: string
+      description: Resource ID - ULID
+      minLength: 26
+      maxLength: 26
+    Name:
+      type: string
+      description: Service Name
+    Version:
+      type: string
+    NextToken:
+      type: object
+      description: Pagination token
+      properties:
+        nextToken:
+          type: string
+  parameters:
+    ID:
+      name: id
+      required: true
+      in: path
+      schema:
+        $ref: "#/components/schemas/ID"
+    If-Match:
+      name: If-Match
+      in: header
+      required: true
+      description: Field for optimistic locking
+      schema:
+        $ref: "#/components/schemas/Version"
+    MaxResults:
+      name: max_results
+      in: query
+      required: false
+      description: Max number of results to return when paginating
+      schema:
+        type: integer
+        default: 100
+        minimum: 1
+        maximum: 100
+    NextTokenInput:
+      name: next_token
+      in: query
+      required: false
+      description: Pagination token
+      schema:
+        type: string
+  responses:
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+    PreConditionFailed:
+      description: Precondition Failed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+    UnAuthorized:
+      description: Not Authorized
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+    TooManyRequests:
+      description: TooManyRequests
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+    CreateServiceResponse:
+      description: Create Service Response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CreateServiceResponse"
+  headers:
+    ETag:
+      required: true
+      description: The version of the resource you requested
+      schema:
+        $ref: "#/components/schemas/Version"
+  securitySchemes:
+    APIKey:
+      type: apiKey
+      name: X-Api-Key
+      in: header

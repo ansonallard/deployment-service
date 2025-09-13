@@ -1,0 +1,5 @@
+generate:
+  models: true
+  embedded-spec: true
+output: internal/api/types.gen.go
+package: api
