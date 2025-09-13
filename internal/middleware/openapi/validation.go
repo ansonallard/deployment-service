@@ -11,8 +11,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/ansonallard/deployment-service/internal/authz"
 	"github.com/ansonallard/deployment-service/internal/ierr"
+	"github.com/ansonallard/deployment-service/internal/middleware/authz"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers"

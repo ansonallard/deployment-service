@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/ansonallard/deployment-service/internal/authz"
 	"github.com/ansonallard/deployment-service/internal/controllers"
 	"github.com/ansonallard/deployment-service/internal/env"
-	"github.com/ansonallard/deployment-service/internal/openapi"
+	"github.com/ansonallard/deployment-service/internal/middleware/authz"
+	"github.com/ansonallard/deployment-service/internal/middleware/openapi"
 	irequest "github.com/ansonallard/deployment-service/internal/request"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
