@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# Git commit-msg hook to enforce conventional commit format
+# Place this file in .git/hooks/commit-msg and make it executable:
+# chmod +x .git/hooks/commit-msg
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+
+# Get the commit message from the file provided by Git
+commit_msg_file=$1
+
+# Extract the first line (the subject line) of the commit message
+subject_line=$(head -n 1 "$commit_msg_file")
+
+# Check if it's a merge commit (starts with "Merge")
+if [[ "$subject_line" =~ ^Merge ]]; then
+  echo -e "${GREEN}Merge commit detected. Allowing.${NC}"
+  exit 0
+fi
+
+# Define the allowed prefixes
+allowed_prefixes=("fix" "feat" "chore" "docs")
+
+# Check if the commit message follows the conventional format
+valid=0
+for prefix in "${allowed_prefixes[@]}"; do
+  # Pattern: prefix followed by optional "!", optional scope in parentheses, then a colon and a space
+  if [[ "$subject_line" =~ ^$prefix\!?(\([a-z0-9_-]+\))?\:\ .+ ]]; then
+    valid=1
+    break
+  fi
+done
+
+if [ $valid -eq 0 ]; then
+  echo -e "${RED}Error: Invalid commit message format${NC}"
+  echo "Commit message must start with one of these prefixes: ${allowed_prefixes[*]}"
+  echo "Or be a merge commit starting with 'Merge'"
+  echo "Examples:"
+  echo "  feat: add new user authentication feature"
+  echo "  fix(api): resolve timeout issue in API calls"
+  echo "  feat!: breaking change to login API"
+  echo "  docs: update installation instructions"
+  echo "  chore(deps)!: upgrade to major version of dependency"
+  echo "  Merge branch 'feature/login' into main"
+  echo ""
+  echo "Your commit message was:"
+  echo "$subject_line"
+  exit 1
+else
+  echo -e "${GREEN}Commit message format is valid!${NC}"
+fi
+
+exit 0
