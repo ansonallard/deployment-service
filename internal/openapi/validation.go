@@ -11,6 +11,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/ansonallard/deployment-service/internal/authz"
+	"github.com/ansonallard/deployment-service/internal/ierr"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers"
@@ -27,7 +29,7 @@ func (w *responseWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
-func ValidationMiddleware(router routers.Router) gin.HandlerFunc {
+func ValidationMiddleware(router routers.Router, authZFunction authz.AuthorizationFunction) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		route, pathParams, err := router.FindRoute(c.Request)
 		switch err {
@@ -54,22 +56,28 @@ func ValidationMiddleware(router routers.Router) gin.HandlerFunc {
 			PathParams: pathParams,
 			Route:      route,
 			Options: &openapi3filter.Options{
-				MultiError: true,
-				AuthenticationFunc: func(ctx context.Context, ai *openapi3filter.AuthenticationInput) error {
-					// TODO: Clean me up
-					apiKey, ok := ai.RequestValidationInput.Request.Header[ai.SecurityScheme.Name]
-					if !ok {
-						return fmt.Errorf("%s not present", ai.SecurityScheme.Name)
-					}
-					if len(apiKey) != 1 || apiKey[0] != "abc123" {
-						return fmt.Errorf("Invalid request")
-					}
-					return nil
-				},
+				MultiError:         true,
+				AuthenticationFunc: authZFunction,
 			},
 		}
 
 		if err := openapi3filter.ValidateRequest(ctx, requestValidationInput); err != nil {
+
+			switch incomingError := err.(type) {
+			case openapi3.MultiError:
+				for _, e := range incomingError {
+					switch incomingError1 := e.(type) {
+					case *openapi3filter.SecurityRequirementsError:
+						for _, e1 := range incomingError1.Errors {
+							if _, ok := e1.(*ierr.UnAuthorizedError); ok {
+								c.JSON(http.StatusUnauthorized, gin.H{"error": e1.Error()})
+								c.Abort()
+								return
+							}
+						}
+					}
+				}
+			}
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Error validating request: %v", err)})
 			c.Abort()
 			return

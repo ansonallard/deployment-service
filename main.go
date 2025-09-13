@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"reflect"
 
+	"github.com/ansonallard/deployment-service/internal/authz"
 	"github.com/ansonallard/deployment-service/internal/controllers"
 	"github.com/ansonallard/deployment-service/internal/env"
 	"github.com/ansonallard/deployment-service/internal/openapi"
@@ -44,6 +45,8 @@ func main() {
 		log.Fatalf("Error creating router: %v", err)
 	}
 
+	authZMiddleware := authz.NewAuthZ(env.GetAPIKey())
+
 	// Create Gin router
 	ginMode := gin.DebugMode
 	if !env.IsDevMode() {
@@ -52,7 +55,7 @@ func main() {
 	gin.SetMode(ginMode)
 	ginRouter := gin.New()
 	ginRouter.Use(gin.Recovery())
-	ginRouter.Use(openapi.ValidationMiddleware(router))
+	ginRouter.Use(openapi.ValidationMiddleware(router, authZMiddleware.AuthorizeCaller))
 
 	topLevelStruct := controllers.NewDeploymentControllers()
 

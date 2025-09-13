@@ -18,6 +18,10 @@ func GetOpenAPIPath() string {
 	return getRequiredEnvVar("OPENAPI_PATH")
 }
 
+func GetAPIKey() string {
+	return getRequiredEnvVar("API_KEY")
+}
+
 func getRequiredEnvVar(incomingEnvVar string) string {
 	envVar := os.Getenv(incomingEnvVar)
 	if envVar == "" {
