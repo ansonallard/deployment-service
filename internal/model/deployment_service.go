@@ -12,11 +12,12 @@ import (
 )
 
 type Service struct {
-	ID            string               `json:"id"`
-	Name          string               `json:"name"`
-	GitSSHUrl     string               `json:"git_ssh_url"`
-	GitBranchName string               `json:"branch_name"`
-	Configuration ServiceConfiguration `json:"configuration"`
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	GitSSHUrl       string `json:"git_ssh_url"`
+	GitBranchName   string `json:"branch_name"`
+	GitRepoFilePath string
+	Configuration   ServiceConfiguration `json:"configuration"`
 }
 
 type ServiceConfiguration struct {

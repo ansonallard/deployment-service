@@ -40,35 +40,24 @@ func NewDeploymentService(config DeploymentServieConfig) (DeploymentService, err
 		return nil, err
 	}
 	return &deploymentService{
-		filePath:              config.ServiceFilPath,
-		serviceDefinitionFile: "service_definition.json",
-		gitRepoPath:           "repo",
-		sshKeyPath:            config.SSHKeyPath,
-		gitClient:             config.GitClient,
+		filePath:                 config.ServiceFilPath,
+		serviceConfigurationFile: "service_definition.json",
+		gitRepoPath:              "repo",
+		sshKeyPath:               config.SSHKeyPath,
+		gitClient:                config.GitClient,
 	}, nil
 }
 
-func dirExists(path string) error {
-	info, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("path isn't a directory")
-	}
-	return nil
-}
-
 type deploymentService struct {
-	filePath              string
-	serviceDefinitionFile string
-	gitRepoPath           string
-	sshKeyPath            string
-	gitClient             GitClient
+	filePath                 string
+	serviceConfigurationFile string
+	gitRepoPath              string
+	sshKeyPath               string
+	gitClient                GitClient
 }
 
 func (ds *deploymentService) Create(ctx context.Context, service *model.Service) error {
-	servicePath := path.Join(ds.filePath, service.Name)
+	servicePath := ds.getServiceFilePath(service.Name)
 
 	if err := os.MkdirAll(servicePath, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
@@ -79,20 +68,16 @@ func (ds *deploymentService) Create(ctx context.Context, service *model.Service)
 		return fmt.Errorf("failed to marshal service: %w", err)
 	}
 
-	// Define file path inside the directory
-	filePath := path.Join(servicePath, ds.serviceDefinitionFile)
-
-	// Write file
-	if err := os.WriteFile(filePath, fileBytes, 0644); err != nil {
+	if err := os.WriteFile(ds.getServiceConfigurationFilePath(service.Name), fileBytes, 0644); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
-	gitRepoPath := path.Join(servicePath, ds.gitRepoPath)
+	gitRepoPath := ds.getGitRepoFilePath(service.Name)
 	if err := os.MkdirAll(gitRepoPath, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
+	service.GitRepoFilePath = gitRepoPath
 
-	// Load your private key
 	sshAuth, err := ssh.NewPublicKeysFromFile("git", ds.sshKeyPath, "")
 	if err != nil {
 		return fmt.Errorf("failed to load ssh key: %w", err)
@@ -115,7 +100,7 @@ func (ds *deploymentService) Create(ctx context.Context, service *model.Service)
 }
 
 func (ds *deploymentService) Get(ctx context.Context, serviceName string) (*model.Service, error) {
-	servicePath := path.Join(ds.filePath, serviceName)
+	servicePath := ds.getServiceFilePath(serviceName)
 	file, err := os.Stat(servicePath)
 	if err != nil {
 		return nil, &ierr.NotFoundError{}
@@ -123,7 +108,7 @@ func (ds *deploymentService) Get(ctx context.Context, serviceName string) (*mode
 	if !file.IsDir() {
 		return nil, &ierr.NotFoundError{}
 	}
-	fileBytes, err := os.ReadFile(path.Join(servicePath, ds.serviceDefinitionFile))
+	fileBytes, err := os.ReadFile(ds.getServiceConfigurationFilePath(serviceName))
 	if err != nil {
 		return nil, err
 	}
@@ -131,6 +116,7 @@ func (ds *deploymentService) Get(ctx context.Context, serviceName string) (*mode
 	if err := json.Unmarshal(fileBytes, service); err != nil {
 		return nil, err
 	}
+	service.GitRepoFilePath = ds.getGitRepoFilePath(serviceName)
 	return service, nil
 }
 
@@ -158,4 +144,27 @@ func (ds *deploymentService) List(ctx context.Context, maxResults int, nextToken
 		}
 	}
 	return services, nil
+}
+
+func (ds *deploymentService) getServiceFilePath(serviceName string) string {
+	return path.Join(ds.filePath, serviceName)
+}
+
+func (ds *deploymentService) getGitRepoFilePath(serviceName string) string {
+	return path.Join(ds.getServiceFilePath(serviceName), ds.gitRepoPath)
+}
+
+func (ds *deploymentService) getServiceConfigurationFilePath(serviceName string) string {
+	return path.Join(ds.getServiceFilePath(serviceName), ds.serviceConfigurationFile)
+}
+
+func dirExists(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("path isn't a directory")
+	}
+	return nil
 }

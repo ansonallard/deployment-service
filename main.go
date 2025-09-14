@@ -16,6 +16,7 @@ import (
 	"github.com/ansonallard/deployment-service/internal/repo"
 	irequest "github.com/ansonallard/deployment-service/internal/request"
 	"github.com/ansonallard/deployment-service/internal/service"
+	"github.com/ansonallard/deployment-service/internal/version"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/gin-gonic/gin"
@@ -94,6 +95,14 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to instantiate deployment service controller")
 	}
 
+	versioner := version.NewVersioner()
+	backgroundProcessor, err := service.NewBackgroundProcessor(service.BackgroundProcessorConfig{
+		Versioner: versioner,
+	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to instantiate background processor")
+	}
+
 	// Validate that top level struct contains all required OpenAPI operation IDs
 	if err = openapi.ValidateStructAndOpenAPI(openAPISpec, deploymentServiceController); err != nil {
 		log.Fatal().Err(err).Msg("Failed to ValidateStructAndOpenAPI")
@@ -105,7 +114,9 @@ func main() {
 			go func(service *model.Service) {
 				log.Info().Interface("service", service).Str("serviceName", service.Name).
 					Msg("New Service created, starting background processing")
-				// Do background processing
+				if err := backgroundProcessor.ProcessService(ctx, service); err != nil {
+					log.Error().Err(err).Interface("service", service).Str("serviceName", service.Name).Msg("error when processing service")
+				}
 			}(channelEntry)
 		}
 	}()
