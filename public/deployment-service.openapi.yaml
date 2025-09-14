@@ -32,6 +32,30 @@ paths:
           $ref: "#/components/responses/TooManyRequests"
         5XX:
           $ref: "#/components/responses/InternalServerError"
+    
+  /services/{name}:
+    get:
+      security:
+      - APIKey: []
+      tags:
+      - Services
+      operationId: GetService
+      parameters:
+      - $ref: "#/components/parameters/Name"
+      responses:
+        200:
+          $ref: "#/components/responses/GetServiceResponse"
+        401:
+          $ref: "#/components/responses/UnAuthorized"
+        403:
+          $ref: "#/components/responses/Forbidden"
+        404:
+          $ref: "#/components/responses/NotFound"
+        429:
+          $ref: "#/components/responses/TooManyRequests"
+        5XX:
+          $ref: "#/components/responses/InternalServerError"
+
 components:
   schemas:
     CreateServiceRequest:
@@ -43,6 +67,14 @@ components:
         service:
           $ref: "#/components/schemas/ServiceInput"
     CreateServiceResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - service
+      properties:
+        service:
+          $ref: "#/components/schemas/Service"
+    GetServiceResponse:
       type: object
       additionalProperties: false
       required:
@@ -190,6 +222,12 @@ components:
       in: path
       schema:
         $ref: "#/components/schemas/ID"
+    Name:
+      name: name
+      required: true
+      in: path
+      schema:
+        $ref: "#/components/schemas/Name"
     If-Match:
       name: If-Match
       in: header
@@ -293,6 +331,15 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/CreateServiceResponse"
+      headers:
+        ETag:
+          $ref: "#/components/headers/ETag"
+    GetServiceResponse:
+      description: Get Service Response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/GetServiceResponse"
       headers:
         ETag:
           $ref: "#/components/headers/ETag"

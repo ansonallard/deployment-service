@@ -9,8 +9,10 @@ import (
 
 	"github.com/ansonallard/deployment-service/internal/controllers"
 	"github.com/ansonallard/deployment-service/internal/env"
+	"github.com/ansonallard/deployment-service/internal/ierr"
 	"github.com/ansonallard/deployment-service/internal/middleware/authz"
 	"github.com/ansonallard/deployment-service/internal/middleware/openapi"
+	"github.com/ansonallard/deployment-service/internal/repo"
 	irequest "github.com/ansonallard/deployment-service/internal/request"
 	"github.com/ansonallard/deployment-service/internal/service"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -58,11 +60,22 @@ func main() {
 	ginRouter.Use(gin.Recovery())
 	ginRouter.Use(openapi.ValidationMiddleware(router, authZMiddleware.AuthorizeCaller))
 
-	deploymentService := service.NewDeploymentService()
-
-	deploymentServiceController := controllers.NewDeploymentServiceController(controllers.DeploymentServiceControllerConfig{
+	deploymentServiceRepo, err := repo.NewDeploymentService(env.GetSerivceFilePath())
+	if err != nil {
+		panic(err)
+	}
+	deploymentService, err := service.NewDeploymentService(service.DeploymentServiceConfig{
+		Repo: deploymentServiceRepo,
+	})
+	if err != nil {
+		panic(err)
+	}
+	deploymentServiceController, err := controllers.NewDeploymentServiceController(controllers.DeploymentServiceControllerConfig{
 		Service: deploymentService,
 	})
+	if err != nil {
+		panic(err)
+	}
 
 	// Validate that top level struct contains all required OpenAPI operation IDs
 	if err = openapi.ValidateStructAndOpenAPI(openAPISpec, deploymentServiceController); err != nil {
@@ -100,16 +113,16 @@ func main() {
 		var methodResult any
 		switch len(result) {
 		case 1:
-			_, ok := result[0].Interface().(error)
+			err, ok := result[0].Interface().(error)
 			if ok {
-				c.AbortWithStatus(http.StatusInternalServerError)
+				errorHandler(err, c)
 				return
 			}
 		case 2:
 			methodResult = result[0].Interface()
-			_, ok := result[1].Interface().(error)
+			err, ok := result[1].Interface().(error)
 			if ok {
-				c.AbortWithStatus(http.StatusInternalServerError)
+				errorHandler(err, c)
 				return
 			}
 		}
@@ -120,4 +133,21 @@ func main() {
 	port := env.GetPort()
 	log.Printf("Server starting on :%s", port)
 	ginRouter.Run(fmt.Sprintf(":%s", port))
+}
+
+func errorHandler(err error, c *gin.Context) {
+	switch err.(type) {
+	case *ierr.UnAuthorizedError:
+		abortWithStatusResponse(http.StatusUnauthorized, err, c)
+	case *ierr.NotFoundError:
+		abortWithStatusResponse(http.StatusNotFound, err, c)
+	case *ierr.ConflictError:
+		abortWithStatusResponse(http.StatusConflict, err, c)
+	default:
+		abortWithStatusResponse(http.StatusInternalServerError, err, c)
+	}
+}
+
+func abortWithStatusResponse(code int, err error, c *gin.Context) {
+	c.AbortWithStatusJSON(code, map[string]string{"message": err.Error()})
 }

@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 
 	"github.com/ansonallard/deployment-service/internal/api"
@@ -76,11 +77,21 @@ func (s *Service) FromCreateRequest(req request.Request) error {
 	return nil
 }
 
-func (s *Service) ToExternal(res *api.CreateServiceResponse) error {
-	res.Service.Id = s.ID
-	res.Service.Name = s.Name
-	res.Service.Git = api.GitConfiguration{}
-	if err := res.Service.Git.FromGitSSHURL(api.GitSSHURL{
+func (s *Service) FromGetRequest(req request.Request) error {
+	pathParams := req.GetPathParams()
+	name, ok := pathParams["name"]
+	if !ok {
+		return fmt.Errorf("name not present in path")
+	}
+	s.Name = name
+	return nil
+}
+
+func (s *Service) ToExternal(res *api.Service) error {
+	res.Id = s.ID
+	res.Name = s.Name
+	res.Git = api.GitConfiguration{}
+	if err := res.Git.FromGitSSHURL(api.GitSSHURL{
 		SshUrl: s.GitSSHUrl,
 	}); err != nil {
 		return err
@@ -94,8 +105,8 @@ func (s *Service) ToExternal(res *api.CreateServiceResponse) error {
 			EnvPath:           s.Configuration.Npm.Service.EnvPath,
 		},
 	})
-	res.Service.Configuration = api.ServiceConfiguration{}
-	res.Service.Configuration.FromNPMConfiguration(api.NPMConfiguration{
+	res.Configuration = api.ServiceConfiguration{}
+	res.Configuration.FromNPMConfiguration(api.NPMConfiguration{
 		Npm: npmConfiguration,
 	})
 	return nil

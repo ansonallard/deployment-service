@@ -22,6 +22,10 @@ func GetAPIKey() string {
 	return getRequiredEnvVar("API_KEY")
 }
 
+func GetSerivceFilePath() string {
+	return getRequiredEnvVar("SERVICE_FILE_PATH")
+}
+
 func getRequiredEnvVar(incomingEnvVar string) string {
 	envVar := os.Getenv(incomingEnvVar)
 	if envVar == "" {

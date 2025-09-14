@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ansonallard/deployment-service/internal/api"
 	"github.com/ansonallard/deployment-service/internal/model"
@@ -11,7 +12,7 @@ import (
 
 type DeploymentServiceController interface {
 	CreateService(ctx context.Context, request request.Request) (*api.CreateServiceResponse, error)
-	GetService(ctx context.Context, request request.Request) error
+	GetService(ctx context.Context, request request.Request) (*api.GetServiceResponse, error)
 	ListServices(ctx context.Context, request request.Request) error
 }
 
@@ -23,13 +24,13 @@ type deploymentServiceController struct {
 	service service.DeploymentService
 }
 
-func NewDeploymentServiceController(config DeploymentServiceControllerConfig) DeploymentServiceController {
+func NewDeploymentServiceController(config DeploymentServiceControllerConfig) (DeploymentServiceController, error) {
 	if config.Service == nil {
-		panic("service not set")
+		return nil, fmt.Errorf("service not set")
 	}
 	return &deploymentServiceController{
 		service: config.Service,
-	}
+	}, nil
 }
 
 func (ds *deploymentServiceController) CreateService(ctx context.Context, request request.Request) (*api.CreateServiceResponse, error) {
@@ -38,16 +39,37 @@ func (ds *deploymentServiceController) CreateService(ctx context.Context, reques
 		return nil, err
 	}
 
-	// TODO: Business logic
-
-	responseDto := new(api.CreateServiceResponse)
-	if err := service.ToExternal(responseDto); err != nil {
+	if err := ds.service.Create(ctx, service); err != nil {
 		return nil, err
 	}
-	return responseDto, nil
+
+	serviceDto := new(api.Service)
+	if err := service.ToExternal(serviceDto); err != nil {
+		return nil, err
+	}
+	return &api.CreateServiceResponse{
+		Service: *serviceDto,
+	}, nil
 }
-func (ds *deploymentServiceController) GetService(ctx context.Context, request request.Request) error {
-	return nil
+
+func (ds *deploymentServiceController) GetService(ctx context.Context, request request.Request) (*api.GetServiceResponse, error) {
+	service := new(model.Service)
+	if err := service.FromGetRequest(request); err != nil {
+		return nil, err
+	}
+
+	service, err := ds.service.Get(ctx, service.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	serviceDto := new(api.Service)
+	if err := service.ToExternal(serviceDto); err != nil {
+		return nil, err
+	}
+	return &api.GetServiceResponse{
+		Service: *serviceDto,
+	}, nil
 }
 
 func (ds *deploymentServiceController) ListServices(ctx context.Context, request request.Request) error {
