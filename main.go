@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
+	"os"
 	"reflect"
 
 	"github.com/ansonallard/deployment-service/internal/controllers"
@@ -12,6 +12,7 @@ import (
 	"github.com/ansonallard/deployment-service/internal/ierr"
 	"github.com/ansonallard/deployment-service/internal/middleware/authz"
 	"github.com/ansonallard/deployment-service/internal/middleware/openapi"
+	"github.com/ansonallard/deployment-service/internal/model"
 	"github.com/ansonallard/deployment-service/internal/repo"
 	irequest "github.com/ansonallard/deployment-service/internal/request"
 	"github.com/ansonallard/deployment-service/internal/service"
@@ -19,33 +20,41 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/rs/zerolog"
 )
 
 //go:generate go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen -config=types.cfg.yaml public/deployment-service.openapi.yaml
 
 func main() {
-	ctx := context.Background()
+	ctx := zeroLogConfiguration()
+	log := zerolog.Ctx(ctx)
 
 	if err := godotenv.Load(); err != nil {
-		panic("could not load .env file")
+		log.Fatal().Msg("could not load .env file")
 	}
+
+	log.Info().Msg("Loaded .env file")
 
 	loader := openapi3.NewLoader()
 	openAPISpec, err := loader.LoadFromFile(env.GetOpenAPIPath())
 	if err != nil {
-		log.Fatalf("Error loading swagger spec: %v", err)
+		log.Fatal().Err(err).Msg("Error loading OpenAPI spec")
 	}
+
+	log.Info().Str("OpenAPIPath", env.GetOpenAPIPath()).Msg("Loaded OpenAPI spec")
 
 	// Validate the OpenAPI spec itself
 	err = openAPISpec.Validate(ctx)
 	if err != nil {
-		log.Fatalf("Error validating swagger spec: %v", err)
+		log.Fatal().Err(err).Msg("Error validating swagger spec")
 	}
+
+	log.Info().Str("OpenAPIPath", env.GetOpenAPIPath()).Msg("Validated OpenAPISpec")
 
 	// Create router from OpenAPI spec
 	router, err := gorillamux.NewRouter(openAPISpec)
 	if err != nil {
-		log.Fatalf("Error creating router: %v", err)
+		log.Fatal().Err(err).Msg("Error creating router")
 	}
 
 	authZMiddleware := authz.NewAuthZ(env.GetAPIKey())
@@ -66,24 +75,43 @@ func main() {
 		GitClient:      repo.NewGitClient(),
 	})
 	if err != nil {
-		panic(err)
+		log.Fatal().Err(err).Msg("Failed to instantiate deployment service")
 	}
+
+	serviceChannel := make(service.ServiceChannel, 100)
+
 	deploymentService, err := service.NewDeploymentService(service.DeploymentServiceConfig{
-		Repo: deploymentServiceRepo,
+		Repo:                 deploymentServiceRepo,
+		BackgroundJobChannel: serviceChannel,
 	})
 	if err != nil {
-		panic(err)
+		log.Fatal().Err(err).Msg("Failed to instantiate deployment service")
 	}
 	deploymentServiceController, err := controllers.NewDeploymentServiceController(controllers.DeploymentServiceControllerConfig{
 		Service: deploymentService,
 	})
 	if err != nil {
-		panic(err)
+		log.Fatal().Err(err).Msg("Failed to instantiate deployment service controller")
 	}
 
 	// Validate that top level struct contains all required OpenAPI operation IDs
 	if err = openapi.ValidateStructAndOpenAPI(openAPISpec, deploymentServiceController); err != nil {
-		log.Panic(err)
+		log.Fatal().Err(err).Msg("Failed to ValidateStructAndOpenAPI")
+	}
+
+	go func() {
+		log.Info().Msg("Waiting on messages from serviceChannel to start the background processing")
+		for channelEntry := range serviceChannel {
+			go func(service *model.Service) {
+				log.Info().Interface("service", service).Str("serviceName", service.Name).
+					Msg("New Service created, starting background processing")
+				// Do background processing
+			}(channelEntry)
+		}
+	}()
+
+	if err := deploymentService.CollectExistingServicesForBackgroundProcessing(ctx); err != nil {
+		log.Fatal().Err(err).Msg("Errored collecting existing services")
 	}
 
 	ginRouter.Any("/*path", func(c *gin.Context) {
@@ -135,7 +163,7 @@ func main() {
 	})
 
 	port := env.GetPort()
-	log.Printf("Server starting on :%s", port)
+	log.Info().Str("port", port).Msgf("Server starting on :%s", port)
 	ginRouter.Run(fmt.Sprintf(":%s", port))
 }
 
@@ -154,4 +182,15 @@ func errorHandler(err error, c *gin.Context) {
 
 func abortWithStatusResponse(code int, err error, c *gin.Context) {
 	c.AbortWithStatusJSON(code, map[string]string{"message": err.Error()})
+}
+
+func zeroLogConfiguration() context.Context {
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	logger := zerolog.New(os.Stdout)
+	ctx := context.Background()
+
+	// Attach the Logger to the context.Context
+	ctx = logger.WithContext(ctx)
+	return ctx
 }
