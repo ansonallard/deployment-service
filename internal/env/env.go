@@ -26,6 +26,10 @@ func GetSerivceFilePath() string {
 	return getRequiredEnvVar("SERVICE_FILE_PATH")
 }
 
+func GetSSHKeyPath() string {
+	return getRequiredEnvVar("SSH_KEY_PATH")
+}
+
 func getRequiredEnvVar(incomingEnvVar string) string {
 	envVar := os.Getenv(incomingEnvVar)
 	if envVar == "" {

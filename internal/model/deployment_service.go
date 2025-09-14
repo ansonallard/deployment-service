@@ -15,6 +15,7 @@ type Service struct {
 	ID            string               `json:"id"`
 	Name          string               `json:"name"`
 	GitSSHUrl     string               `json:"git_ssh_url"`
+	GitBranchName string               `json:"branch_name"`
 	Configuration ServiceConfiguration `json:"configuration"`
 }
 
@@ -45,12 +46,13 @@ func (s *Service) FromCreateRequest(req request.Request) error {
 	}
 	s.Name = servceInputDto.Service.Name
 
-	var gitSshUrl api.GitSSHURL
-	if gitSshUrl, err = servceInputDto.Service.Git.AsGitSSHURL(); err != nil {
+	var gitConfigurationOptions api.GitConfigurationOptions
+	if gitConfigurationOptions, err = servceInputDto.Service.Git.AsGitConfigurationOptions(); err != nil {
 		return err
 	}
 
-	s.GitSSHUrl = gitSshUrl.SshUrl
+	s.GitSSHUrl = gitConfigurationOptions.SshUrl
+	s.GitBranchName = gitConfigurationOptions.BranchName
 
 	s.ID = utils.GenerateUlidString()
 
@@ -92,8 +94,9 @@ func (s *Service) ToExternal(res *api.Service) error {
 	res.Id = s.ID
 	res.Name = s.Name
 	res.Git = api.GitConfiguration{}
-	if err := res.Git.FromGitSSHURL(api.GitSSHURL{
-		SshUrl: s.GitSSHUrl,
+	if err := res.Git.FromGitConfigurationOptions(api.GitConfigurationOptions{
+		SshUrl:     s.GitSSHUrl,
+		BranchName: s.GitBranchName,
 	}); err != nil {
 		return err
 	}

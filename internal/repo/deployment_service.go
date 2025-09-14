@@ -9,6 +9,9 @@ import (
 
 	"github.com/ansonallard/deployment-service/internal/ierr"
 	"github.com/ansonallard/deployment-service/internal/model"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
 
 type DeploymentService interface {
@@ -17,16 +20,31 @@ type DeploymentService interface {
 	List(ctx context.Context, maxResults int, nextToken string) ([]*model.Service, error)
 }
 
-func NewDeploymentService(serviceFilePath string) (DeploymentService, error) {
-	if serviceFilePath == "" {
+type DeploymentServieConfig struct {
+	ServiceFilPath string
+	SSHKeyPath     string
+	GitClient      GitClient
+}
+
+func NewDeploymentService(config DeploymentServieConfig) (DeploymentService, error) {
+	if config.ServiceFilPath == "" {
 		return nil, fmt.Errorf("serviceFilePath not set")
 	}
-	if err := dirExists(serviceFilePath); err != nil {
+	if config.SSHKeyPath == "" {
+		return nil, fmt.Errorf("sshKeyPath not set")
+	}
+	if config.GitClient == nil {
+		return nil, fmt.Errorf("git client not set")
+	}
+	if err := dirExists(config.ServiceFilPath); err != nil {
 		return nil, err
 	}
 	return &deploymentService{
-		filePath:              serviceFilePath,
+		filePath:              config.ServiceFilPath,
 		serviceDefinitionFile: "service_definition.json",
+		gitRepoPath:           "repo",
+		sshKeyPath:            config.SSHKeyPath,
+		gitClient:             config.GitClient,
 	}, nil
 }
 
@@ -44,6 +62,9 @@ func dirExists(path string) error {
 type deploymentService struct {
 	filePath              string
 	serviceDefinitionFile string
+	gitRepoPath           string
+	sshKeyPath            string
+	gitClient             GitClient
 }
 
 func (ds *deploymentService) Create(ctx context.Context, service *model.Service) error {
@@ -64,6 +85,30 @@ func (ds *deploymentService) Create(ctx context.Context, service *model.Service)
 	// Write file
 	if err := os.WriteFile(filePath, fileBytes, 0644); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	gitRepoPath := path.Join(servicePath, ds.gitRepoPath)
+	if err := os.MkdirAll(gitRepoPath, os.ModePerm); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	// Load your private key
+	sshAuth, err := ssh.NewPublicKeysFromFile("git", ds.sshKeyPath, "")
+	if err != nil {
+		return fmt.Errorf("failed to load ssh key: %w", err)
+	}
+
+	_, err = ds.gitClient.Clone(ctx, gitRepoPath, &git.CloneOptions{
+		URL:           service.GitSSHUrl,
+		ReferenceName: plumbing.ReferenceName(service.GitBranchName),
+		SingleBranch:  true,
+		Auth:          sshAuth,
+	})
+	if err != nil {
+		if err := os.RemoveAll(servicePath); err != nil {
+			return fmt.Errorf("failed to clean up service file")
+		}
+		return fmt.Errorf("failed to clone repo: %w", err)
 	}
 
 	return nil

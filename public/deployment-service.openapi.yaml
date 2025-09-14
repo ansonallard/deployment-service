@@ -206,18 +206,23 @@ components:
     GitConfiguration:
       type: object
       oneOf:
-        - $ref: "#/components/schemas/GitSSHURL"
-    GitSSHURL:
+        - $ref: "#/components/schemas/GitConfigurationOptions"
+    GitConfigurationOptions:
       type: object
       additionalProperties: false
       required:
       - sshUrl
+      - branchName
       properties:
         sshUrl:
           $ref: "#/components/schemas/SSHUrl"
+        branchName:
+          $ref: "#/components/schemas/BranchName"
     SSHUrl:
       type: string
       pattern: ^git@.+\.git$
+    BranchName:
+      type: string
     Service:
         type: object
         required:

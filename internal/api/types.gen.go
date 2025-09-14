@@ -21,6 +21,9 @@ const (
 	APIKeyScopes = "APIKey.Scopes"
 )
 
+// BranchName defines model for BranchName.
+type BranchName = string
+
 // CreateServiceRequest defines model for CreateServiceRequest.
 type CreateServiceRequest struct {
 	Service ServiceInput `json:"service"`
@@ -50,9 +53,10 @@ type GitConfiguration struct {
 	union json.RawMessage
 }
 
-// GitSSHURL defines model for GitSSHURL.
-type GitSSHURL struct {
-	SshUrl SSHUrl `json:"sshUrl"`
+// GitConfigurationOptions defines model for GitConfigurationOptions.
+type GitConfigurationOptions struct {
+	BranchName BranchName `json:"branchName"`
+	SshUrl     SSHUrl     `json:"sshUrl"`
 }
 
 // ID Resource ID - ULID
@@ -196,22 +200,22 @@ type ListServicesParams struct {
 // CreateServiceJSONRequestBody defines body for CreateService for application/json ContentType.
 type CreateServiceJSONRequestBody = CreateServiceRequest
 
-// AsGitSSHURL returns the union data inside the GitConfiguration as a GitSSHURL
-func (t GitConfiguration) AsGitSSHURL() (GitSSHURL, error) {
-	var body GitSSHURL
+// AsGitConfigurationOptions returns the union data inside the GitConfiguration as a GitConfigurationOptions
+func (t GitConfiguration) AsGitConfigurationOptions() (GitConfigurationOptions, error) {
+	var body GitConfigurationOptions
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromGitSSHURL overwrites any union data inside the GitConfiguration as the provided GitSSHURL
-func (t *GitConfiguration) FromGitSSHURL(v GitSSHURL) error {
+// FromGitConfigurationOptions overwrites any union data inside the GitConfiguration as the provided GitConfigurationOptions
+func (t *GitConfiguration) FromGitConfigurationOptions(v GitConfigurationOptions) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeGitSSHURL performs a merge with any union data inside the GitConfiguration, using the provided GitSSHURL
-func (t *GitConfiguration) MergeGitSSHURL(v GitSSHURL) error {
+// MergeGitConfigurationOptions performs a merge with any union data inside the GitConfiguration, using the provided GitConfigurationOptions
+func (t *GitConfiguration) MergeGitConfigurationOptions(v GitConfigurationOptions) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -333,29 +337,29 @@ func (t *ServiceConfiguration) UnmarshalJSON(b []byte) error {
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/+xYbW/bthP/KgL/ffdnbCfNBsyv1sZ9MBZ7RpwMBdqsYKSzzFYiVZLy4hn67gOpR0uU",
-	"JQdtvQJ7ZQu6+93vHnQ83g65PIw4A6YkGu/QGogHwvx9dUt8/euBdAWNFOUMjdHtGpwNCEk5c/jKUWtw",
-	"BEgeCxecLY8dAV9ikAo8hJF01xASjfFMwAqN0f+GpbVh+lYO/0jRUJIkGEVEkBBURmFGHm9AxkHKbZ/I",
-	"jDw6LA4fQGgeIhVzFHcEqFgw5681MCciPmVEUeYjjKhW+xKD2CKMGAkBjVFIHj9munuEPViROFBofD4a",
-	"YS1FwzjMnyjLnjBS20jDUKbAB4G0C3ODvEvNRUStS2vmByMdIyrAQ2MlYugbJ4NrDMCjuuWfgU1ZFKtm",
-	"ZBaZ05w5Sou1uM7gUX3MBUoKmUdSCR01kxQBMuJMgsnCS+LdpDnWTy5nCpj5S6IooK6xO/wkNZNdBTYS",
-	"PAKhaAoSgpTEB5u9Iqb84RO4KmWw7+BL4uV1hhKMrjhbBdQ9HZ+b/ANwcyaalQCiYAliQ124ySJ4FMVD",
-	"xWBHt3BLBZ1M0ilEse1Tt1nMxIZGxhh4zcUD9TxgJwt4ySDB6A2obxVlC7SFzRtQXzW+U6ZAMBJoTBCv",
-	"hODiZJHOuTgpGSdlk2B0TWUeG/nV424Ft7DTcs3Q6xbJ1WseM+/0LYFx5awMlQSjW85nhG2z/ilPxq7O",
-	"I8Hojr2I1ZoL+jecLmpzrpwKDS2QlYQGrPW84gwinkc1AAkWFS4rEkjANXoyVe6qv8xGer6mJ2B+Yr8v",
-	"MO4bDh1o+t+M41H0Jtz9DOJKg0lY6NHEMjyotZ6iPCN65qayzooG4FDm5Oi4nt4cXAseRi7l+qC+YpvD",
-	"cANgmz5A9mPi35GXN1TpIYb6sSCpezvEGfy+QuP3HScUVcvl27uba5S0AGevj/RVru9E0Onq8q2Wania",
-	"Ktv4TCfNRBatcjpxzpy76+kEmYn7GpivE3/xsxm5q4+N5LadRke4zPKpunMOLwR1e8qM9qwK2VYW0hqu",
-	"+WLWqItjXIrCTmdqFq7W3EpTQ/VhmOv3LuD5YlZ8MbhT9Jo+CCK29mKvvD8uTkGp1c/+flLqscrhDnNs",
-	"JNYmuyx7ztfvVCX+YX8Oda42jOMIe7Zz6RD15kGmZ4nGAdQNUUgnGEF51BxSzE+kephy9QYRbPHPGsts",
-	"cbDfHvPxdp7uDhqtb17tW52LgAM9r3Newyhr+HrqI0pfDNAY/elT9evg/x8+DHyqntkYPq2I3Xo99Wiv",
-	"tTrGyKeq845XP3sTjKjXpTWdaDmWZazX2qZaK9TL9zApR1xz11Yebd9Z7z5bc/OAjWKx9IPk68l5eFoK",
-	"jL9UQSh7D4MFGBGCbPVzvva0fnkS3FhQtV1qnNTei8X0N9gWi8V0bVBu896dvYjomZYoTUVUP5t7FmUr",
-	"bkxRFeh3E4gCvg2BlffnWcg9CBBGm5wZGg3OByNNlkfASETRGD0fjAYXupEQtTa8htURyAeTP10XJopT",
-	"L7ulF5HbX/G2FG0pMqysgNvmg4p0bTWqa3xveXkxGrWlrJBr2T5gdNlHubIeNSrn3Sp7V2+j9LxbaW8F",
-	"djn6pVvjqrKcvLzooWDZEvz07l23nm1/VS1qk/a8nN/fm0ZEfF0N5Qd2n2AUcWmppr0rdrZMB6lecm/7",
-	"rbarWTqbu/Be5dSyqv2vnr5vPSW4bFXDne6aSWvHKncFR/er9Jh5Ut+xbZu/Y8ovuzWKteoPkvLsgp6n",
-	"LtazKxpuzlFyn/wTAAD//xfr45D6HAAA",
+	"H4sIAAAAAAAC/9RYX2/bNhD/KgLXtzG2k3YD5qe1cdsZi10jSYcCbVYw0lliK5EqSXnxDH33gdRfS7Qk",
+	"B+3cPiWC7373493x7ng75PIo5gyYkmi6QwEQD4T59+Ut8fVfD6QraKwoZ2iKbgNwNiAk5czha0cF4AiQ",
+	"PBEuOFueOAK+JCAVeAgj6QYQEY3xRMAaTdFP48raOPtVjv/K0FCaphjFRJAIVE5hQR6uQSZhxm2fyII8",
+	"OCyJ7kFoHiITcxR3BKhEMOefAJgTE58yoijzEUZUq31JQGwRRoxEgKYoIg8fc909wh6sSRIqND2fTLCW",
+	"olESFV+U5V8YqW2sYShT4INA+ghLg7zLzMVEBZU18wcj7SMqwENTJRIY6ieDawzAg7rln4HNWZyotmdW",
+	"+aE5c5QWO3B0Bg/qYyFQUchPJJXQXjNBESBjziSYKLwg3nUWY/3lcqaAmX9JHIfUNXbHn6RmsqvBxoLH",
+	"IBTNQCKQkvhgs1f6lN9/AldlDPYP+IJ4RZ6hFKNLztYhdU/H57q4AG7BRLMSQBTcgNhQF65zDx5FsSsZ",
+	"7OgWbpmgk0s6pSi2XXWbxVxsbGSMgVdc3FPPA3Yyh1cMUoxeg/pWXrZAW9i8BvVV/TtnCgQjocYE8VII",
+	"Lk7m6YKLk5FxMjYpRldUFr6RX93vVnALOy3Xdr0ukVy94gnzTl8SGFfO2lBJMbrlfEHYNq+f8mTsmjxS",
+	"jN6y54kKuKD/wum8tuTKqdHQAnlKmM4jCHODor024FsFt2xRxPOoxifhqkZ1TUIJuMFeZsp96ZnbyNpv",
+	"1iCLhv6+xLhrnbejJ3wzjkfRm3H3M4hLDSZhpScXy2yhAj1keUb0zM1knTUNwaHMKdBxOzwZuBbsRq7k",
+	"hqC+ZJtuuBGwzRAgexf5PuLymio941A/ESQ73g5xBm/WaPq+p4E1NN8Y90iUDjFTCB/nh/u9W9pFrnaf",
+	"9UWXwVsR9rrv5g8t1fJepozr1m1HnM/amVKW6vnMOXPeXs1nyEz8V8B8nVkXv5qRv/7Zyp5D3fAIv7Fi",
+	"qu99B5SC2mu50YFpJw/lnbS6a7latBLvmCPFUe9hGhYuA26lqaGGMCz0B9+Q5WpRXkncK3pF7wURW/v9",
+	"qf1+nJ/CSmuY/f2gNH1VwHVzbAXWJntTFbWvXwor/O7zdJXGQxjHEfZsja+LertT6lmm1eH6IUrpFCOo",
+	"elmXYtHymm4q1FtEsOV8Vl/mNXu/PBbj9TLbXbRK37Jet3oXER01r3dexCiv/nrqJEo/TNAU/e1T9fvo",
+	"5w8fRj5VT2wMH5fEbjOfBpTXRh5j5FPV+8ZsNvcUI+r1ac1nWo4N6LLl2qieK9Qr9kAZR9w4ri09Dt2z",
+	"wXW2ccwOG+Vi6weJ16Pj8LgQmPNSBZEcPG2WYEQIstXfxdrVevMkuImganujcTJ7z1fzP2FbLjaztUW1",
+	"TXx39jymZ1qiMhVT/W3eeZStuTFFVah/m0Ec8m0ErHq/LyLugZ7hNgUzNBmdjyaaLI+BkZiiKXo6mowu",
+	"dCEhKjC8xvURyAcTP50XxotzL98SlJ7bXzEfSNpKZFxbQR+aD2rSjdWszvG95enFZHIoZKXcge0HRs+G",
+	"KNfWs0blvF9l7+lvlJ72K+2t4J5d/NavYVk6/PLuXb+ebR1Wz1ETxSI739+ZukJ8HdzqvtylGMVcWpJj",
+	"70me7+ZBqhfc236rZW0enfZqfVB2HNj8ftfpMRmQHpe13fkPkE8prirPeKeLYHqwAFW7haPLT9Y1HlVG",
+	"bMvr/zHkz/o1yi3tDxLy/L1dhC7Roygab85Repf+FwAA//8zj0ZaSR0AAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

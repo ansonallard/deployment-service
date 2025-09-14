@@ -60,7 +60,11 @@ func main() {
 	ginRouter.Use(gin.Recovery())
 	ginRouter.Use(openapi.ValidationMiddleware(router, authZMiddleware.AuthorizeCaller))
 
-	deploymentServiceRepo, err := repo.NewDeploymentService(env.GetSerivceFilePath())
+	deploymentServiceRepo, err := repo.NewDeploymentService(repo.DeploymentServieConfig{
+		ServiceFilPath: env.GetSerivceFilePath(),
+		SSHKeyPath:     env.GetSSHKeyPath(),
+		GitClient:      repo.NewGitClient(),
+	})
 	if err != nil {
 		panic(err)
 	}
