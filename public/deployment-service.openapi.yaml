@@ -168,6 +168,7 @@ components:
         - envPath
         - dockerfilePath
         - dockerComposePath
+        - envVars
       properties:
         envPath:
           $ref: "#/components/schemas/EnvPath"
@@ -175,6 +176,10 @@ components:
           $ref: "#/components/schemas/DockerfilePath"
         dockerComposePath:
           $ref: "#/components/schemas/DockerComposePath"
+        envVars:
+          $ref: "#/components/schemas/EnvVars"
+    EnvVars:
+      type: object
     EnvPath:
       type: string
       description: Path to .env file in service

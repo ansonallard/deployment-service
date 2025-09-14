@@ -35,6 +35,7 @@ type ServieConfiguration struct {
 	EnvPath           string
 	DockerfilePath    string
 	DockerComposePath string
+	EnvVars           map[string]any
 }
 
 func (s *Service) FromCreateRequest(req request.Request) error {
@@ -73,6 +74,7 @@ func (s *Service) FromCreateRequest(req request.Request) error {
 					EnvPath:           npmServiceConfiguration.Service.EnvPath,
 					DockerfilePath:    npmServiceConfiguration.Service.DockerfilePath,
 					DockerComposePath: npmServiceConfiguration.Service.DockerComposePath,
+					EnvVars:           npmServiceConfiguration.Service.EnvVars,
 				},
 			},
 		},
@@ -107,6 +109,7 @@ func (s *Service) ToExternal(res *api.Service) error {
 			DockerComposePath: s.Configuration.Npm.Service.DockerComposePath,
 			DockerfilePath:    s.Configuration.Npm.Service.DockerfilePath,
 			EnvPath:           s.Configuration.Npm.Service.EnvPath,
+			EnvVars:           s.Configuration.Npm.Service.EnvVars,
 		},
 	})
 	res.Configuration = api.ServiceConfiguration{}
