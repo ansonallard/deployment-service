@@ -32,6 +32,28 @@ paths:
           $ref: "#/components/responses/TooManyRequests"
         5XX:
           $ref: "#/components/responses/InternalServerError"
+    get:
+      security:
+      - APIKey: []
+      tags:
+      - Services
+      operationId: ListServices
+      parameters:
+      - $ref: "#/components/parameters/MaxResults"
+      - $ref: "#/components/parameters/NextTokenInput"
+      responses:
+        200:
+          $ref: "#/components/responses/ListServicesResponse"
+        400:
+          $ref: "#/components/responses/BadRequest"
+        401:
+          $ref: "#/components/responses/UnAuthorized"
+        403:
+          $ref: "#/components/responses/Forbidden"
+        429:
+          $ref: "#/components/responses/TooManyRequests"
+        5XX:
+          $ref: "#/components/responses/InternalServerError"
     
   /services/{name}:
     get:
@@ -82,6 +104,20 @@ components:
       properties:
         service:
           $ref: "#/components/schemas/Service"
+    ListServicesResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - services
+      properties:
+        services:
+          $ref: "#/components/schemas/Services"
+        nextToken:
+          $ref: "#/components/schemas/NextToken"
+    Services:
+      type: array
+      items:
+        $ref: "#/components/schemas/Service"
     ServiceInput:
       type: object
       additionalProperties: false
@@ -343,6 +379,12 @@ components:
       headers:
         ETag:
           $ref: "#/components/headers/ETag"
+    ListServicesResponse:
+      description: List Service Response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ListServicesResponse"
   headers:
     ETag:
       # required: true

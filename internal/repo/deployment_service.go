@@ -14,6 +14,7 @@ import (
 type DeploymentService interface {
 	Create(ctx context.Context, service *model.Service) error
 	Get(ctx context.Context, serviceName string) (*model.Service, error)
+	List(ctx context.Context, maxResults int, nextToken string) ([]*model.Service, error)
 }
 
 func NewDeploymentService(serviceFilePath string) (DeploymentService, error) {
@@ -86,4 +87,30 @@ func (ds *deploymentService) Get(ctx context.Context, serviceName string) (*mode
 		return nil, err
 	}
 	return service, nil
+}
+
+func (ds *deploymentService) List(ctx context.Context, maxResults int, nextToken string) ([]*model.Service, error) {
+	services := make([]*model.Service, 0)
+
+	dirEntries, err := os.ReadDir(ds.filePath)
+	if err != nil {
+		return nil, err
+	}
+	counter := 0
+	for _, dirEntry := range dirEntries {
+		if !dirEntry.IsDir() {
+			continue
+		}
+		serviceName := dirEntry.Name()
+		service, err := ds.Get(ctx, serviceName)
+		if err != nil {
+			return nil, err
+		}
+		counter++
+		services = append(services, service)
+		if counter >= maxResults {
+			break
+		}
+	}
+	return services, nil
 }

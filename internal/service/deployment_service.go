@@ -12,7 +12,7 @@ import (
 type DeploymentService interface {
 	Create(ctx context.Context, service *model.Service) error
 	Get(ctx context.Context, serviceName string) (*model.Service, error)
-	List(ctx context.Context) error
+	List(ctx context.Context, maxResults int, nextToken string) ([]*model.Service, error)
 }
 
 type DeploymentServiceConfig struct {
@@ -31,11 +31,16 @@ func NewDeploymentService(config DeploymentServiceConfig) (DeploymentService, er
 }
 
 func (ds *deploymentService) Create(ctx context.Context, service *model.Service) error {
-	service, err := ds.Get(ctx, service.Name)
+	existingService, err := ds.Get(ctx, service.Name)
 	if err != nil {
-		return err
+		switch err.(type) {
+		case *ierr.NotFoundError:
+			// Continue on
+		default:
+			return err
+		}
 	}
-	if service != nil {
+	if existingService != nil {
 		return &ierr.ConflictError{}
 	}
 	return ds.repo.Create(ctx, service)
@@ -45,6 +50,6 @@ func (ds *deploymentService) Get(ctx context.Context, serviceName string) (*mode
 	return ds.repo.Get(ctx, serviceName)
 }
 
-func (ds *deploymentService) List(ctx context.Context) error {
-	return nil
+func (ds *deploymentService) List(ctx context.Context, maxResults int, nextToken string) ([]*model.Service, error) {
+	return ds.repo.List(ctx, maxResults, nextToken)
 }

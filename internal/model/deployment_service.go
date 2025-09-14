@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/ansonallard/deployment-service/internal/api"
 	"github.com/ansonallard/deployment-service/internal/request"
@@ -125,4 +126,19 @@ func parseRequestBody[T any](requestBody io.ReadCloser) (T, error) {
 		return apiModel, err
 	}
 	return apiModel, nil
+}
+
+func FromListRequest(req request.Request) (maxResults int, nextToken string, err error) {
+	queryParams := req.GetQueryParams()
+	maxResultsList := queryParams["max_results"]
+	nextTokenList := queryParams["next_token"]
+	if len(nextTokenList) == 1 {
+		nextToken = nextTokenList[0]
+	}
+	maxResult, err := strconv.ParseInt(maxResultsList[0], 10, 32)
+	if err != nil {
+		return 0, "", err
+	}
+	return int(maxResult), nextToken, nil
+
 }

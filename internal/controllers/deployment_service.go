@@ -13,7 +13,7 @@ import (
 type DeploymentServiceController interface {
 	CreateService(ctx context.Context, request request.Request) (*api.CreateServiceResponse, error)
 	GetService(ctx context.Context, request request.Request) (*api.GetServiceResponse, error)
-	ListServices(ctx context.Context, request request.Request) error
+	ListServices(ctx context.Context, request request.Request) (*api.ListServicesResponse, error)
 }
 
 type DeploymentServiceControllerConfig struct {
@@ -72,6 +72,28 @@ func (ds *deploymentServiceController) GetService(ctx context.Context, request r
 	}, nil
 }
 
-func (ds *deploymentServiceController) ListServices(ctx context.Context, request request.Request) error {
-	return nil
+func (ds *deploymentServiceController) ListServices(ctx context.Context, request request.Request) (*api.ListServicesResponse, error) {
+	maxResults, nextToken, err := model.FromListRequest(request)
+	if err != nil {
+		return nil, err
+	}
+
+	services, err := ds.service.List(ctx, maxResults, nextToken)
+	if err != nil {
+		return nil, err
+	}
+
+	servicesDto := make(api.Services, 0)
+
+	for _, service := range services {
+		serviceDto := new(api.Service)
+		if err := service.ToExternal(serviceDto); err != nil {
+			return nil, err
+		}
+		servicesDto = append(servicesDto, *serviceDto)
+	}
+
+	return &api.ListServicesResponse{
+		Services: servicesDto,
+	}, nil
 }
