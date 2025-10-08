@@ -30,6 +30,18 @@ func GetSSHKeyPath() string {
 	return getRequiredEnvVar("SSH_KEY_PATH")
 }
 
+func GetGitRepoOirign() string {
+	return getRequiredEnvVar("GIT_REPO_ORIGIN")
+}
+
+func GetCICommitAuthorName() string {
+	return getRequiredEnvVar("CI_COMMIT_AUTHOR_NAME")
+}
+
+func GetCICommitAuthorEmail() string {
+	return getRequiredEnvVar("CI_COMMIT_AUTHOR_EMAIL")
+}
+
 func getRequiredEnvVar(incomingEnvVar string) string {
 	envVar := os.Getenv(incomingEnvVar)
 	if envVar == "" {

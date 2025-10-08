@@ -74,6 +74,7 @@ func main() {
 		ServiceFilPath: env.GetSerivceFilePath(),
 		SSHKeyPath:     env.GetSSHKeyPath(),
 		GitClient:      repo.NewGitClient(),
+		GitRepoOrigin:  env.GetGitRepoOirign(),
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to instantiate deployment service")
@@ -97,7 +98,13 @@ func main() {
 
 	versioner := version.NewVersioner()
 	backgroundProcessor, err := service.NewBackgroundProcessor(service.BackgroundProcessorConfig{
-		Versioner: versioner,
+		Versioner:     versioner,
+		SSHKeyPath:    env.GetSSHKeyPath(),
+		GitRepoOrigin: env.GetGitRepoOirign(),
+		CiCommitAuthor: service.CiCommitAuthor{
+			Name:  env.GetCICommitAuthorName(),
+			Email: env.GetCICommitAuthorEmail(),
+		},
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to instantiate background processor")

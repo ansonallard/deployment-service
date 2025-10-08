@@ -24,6 +24,7 @@ type DeploymentServieConfig struct {
 	ServiceFilPath string
 	SSHKeyPath     string
 	GitClient      GitClient
+	GitRepoOrigin  string
 }
 
 func NewDeploymentService(config DeploymentServieConfig) (DeploymentService, error) {
@@ -45,6 +46,7 @@ func NewDeploymentService(config DeploymentServieConfig) (DeploymentService, err
 		gitRepoPath:              "repo",
 		sshKeyPath:               config.SSHKeyPath,
 		gitClient:                config.GitClient,
+		gitRepoOrigin:            config.GitRepoOrigin,
 	}, nil
 }
 
@@ -54,6 +56,7 @@ type deploymentService struct {
 	gitRepoPath              string
 	sshKeyPath               string
 	gitClient                GitClient
+	gitRepoOrigin            string
 }
 
 func (ds *deploymentService) Create(ctx context.Context, service *model.Service) error {
@@ -88,6 +91,7 @@ func (ds *deploymentService) Create(ctx context.Context, service *model.Service)
 		ReferenceName: plumbing.ReferenceName(service.GitBranchName),
 		SingleBranch:  true,
 		Auth:          sshAuth,
+		RemoteName:    ds.gitRepoOrigin,
 	})
 	if err != nil {
 		if err := os.RemoveAll(servicePath); err != nil {
