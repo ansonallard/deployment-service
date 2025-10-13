@@ -42,12 +42,20 @@ func GetCICommitAuthorEmail() string {
 	return getRequiredEnvVar("CI_COMMIT_AUTHOR_EMAIL")
 }
 
+func GetDockerHome() string {
+	return getOptionalEnvVarDefault("DOCKER_HOME")
+}
+
 func getRequiredEnvVar(incomingEnvVar string) string {
 	envVar := os.Getenv(incomingEnvVar)
 	if envVar == "" {
 		panic(fmt.Sprintf("Env var %s required by not set", incomingEnvVar))
 	}
 	return envVar
+}
+
+func getOptionalEnvVarDefault(incomingEnvVar string) string {
+	return getOptionalEnvVar(incomingEnvVar, "")
 }
 
 func getOptionalEnvVar(incomingEnvVar, defaultArg string) string {

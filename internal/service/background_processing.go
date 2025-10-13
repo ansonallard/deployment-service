@@ -10,6 +10,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/ansonallard/deployment-service/internal/model"
+	"github.com/ansonallard/deployment-service/internal/releaser"
 	"github.com/ansonallard/deployment-service/internal/version"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
@@ -33,6 +34,7 @@ type BackgroundProcessorConfig struct {
 	SSHKeyPath     string
 	GitRepoOrigin  string
 	CiCommitAuthor CiCommitAuthor
+	DockerReleaser releaser.DockerReleaser
 }
 
 type CiCommitAuthor struct {
@@ -53,6 +55,7 @@ func NewBackgroundProcessor(config BackgroundProcessorConfig) (BackgroundProcess
 			gitRepoOrigin:   config.GitRepoOrigin,
 			sshAuth:         sshAuth,
 			ciCommmitAuthor: config.CiCommitAuthor,
+			dockerReleaser:  config.DockerReleaser,
 		},
 		nil
 }
@@ -62,6 +65,7 @@ type backgroundProcessor struct {
 	sshAuth         *ssh.PublicKeys
 	gitRepoOrigin   string
 	ciCommmitAuthor CiCommitAuthor
+	dockerReleaser  releaser.DockerReleaser
 }
 
 func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *model.Service) error {
@@ -88,6 +92,16 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 		return err
 	}
 
+	if err := bp.dockerReleaser.BuildImage(
+		ctx,
+		service.Name,
+		service.GitRepoFilePath,
+		serviceConfiguration.Npm.Service.DockerfilePath,
+		nextVersion,
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -111,7 +125,7 @@ func (bp *backgroundProcessor) setPackageJsonVersion(service *model.Service, ver
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(packageJsonFilePath, packageJsonBytes, 644); err != nil {
+	if err := os.WriteFile(packageJsonFilePath, packageJsonBytes, 0644); err != nil {
 		return nil
 	}
 	return nil

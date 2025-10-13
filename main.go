@@ -13,10 +13,12 @@ import (
 	"github.com/ansonallard/deployment-service/internal/middleware/authz"
 	"github.com/ansonallard/deployment-service/internal/middleware/openapi"
 	"github.com/ansonallard/deployment-service/internal/model"
+	"github.com/ansonallard/deployment-service/internal/releaser"
 	"github.com/ansonallard/deployment-service/internal/repo"
 	irequest "github.com/ansonallard/deployment-service/internal/request"
 	"github.com/ansonallard/deployment-service/internal/service"
 	"github.com/ansonallard/deployment-service/internal/version"
+	"github.com/docker/docker/client"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/gin-gonic/gin"
@@ -96,6 +98,27 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to instantiate deployment service controller")
 	}
 
+	dockerClientOpts := []client.Opt{
+		client.FromEnv,
+		client.WithAPIVersionNegotiation(),
+	}
+
+	if env.GetDockerHome() != "" {
+		dockerClientOpts = append(dockerClientOpts, client.WithHost(env.GetDockerHome()))
+	}
+
+	dockerClient, err := client.NewClientWithOpts(
+		dockerClientOpts...,
+	)
+	if err != nil {
+		log.Fatal().Err(err).Msg("could not instantiate docker client")
+	}
+	defer dockerClient.Close()
+
+	dockerReleaser := releaser.NewDockerReleaser(releaser.DockerReleaserConfig{
+		DockerClient: dockerClient,
+	})
+
 	versioner := version.NewVersioner()
 	backgroundProcessor, err := service.NewBackgroundProcessor(service.BackgroundProcessorConfig{
 		Versioner:     versioner,
@@ -105,6 +128,7 @@ func main() {
 			Name:  env.GetCICommitAuthorName(),
 			Email: env.GetCICommitAuthorEmail(),
 		},
+		DockerReleaser: dockerReleaser,
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to instantiate background processor")
