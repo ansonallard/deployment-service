@@ -121,7 +121,7 @@ func main() {
 	})
 
 	dockerCompose := compose.New(compose.Config{
-		CLI: compose.V1,
+		CLI: compose.V2,
 	})
 
 	envWriter := service.NewEnvFileWriter()

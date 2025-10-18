@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+
+	"github.com/rs/zerolog"
 )
 
 // CLIType is an enum for Docker Compose CLI version.
@@ -57,30 +59,51 @@ func (r *runner) Down(ctx context.Context, composeDir string) (string, error) {
 	return r.runComposeCommand(ctx, composeDir, "down")
 }
 
-// runComposeCommand executes the configured compose command with arguments.
 func (r *runner) runComposeCommand(ctx context.Context, composeDir string, args ...string) (string, error) {
+	info, err := os.Stat(composeDir)
+	if err != nil {
+		return "", fmt.Errorf("composeDir invalid: %w", err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("composeDir is not a directory: %s", composeDir)
+	}
+
 	var cmd *exec.Cmd
 
 	switch r.config.CLI {
 	case V1:
 		cmd = exec.CommandContext(ctx, "/opt/homebrew/Cellar/docker-compose/2.33.1/bin/docker-compose", args...)
 	case V2:
-		cmd = exec.CommandContext(ctx, "docker", append([]string{"compose"}, args...)...)
+		dockerPath, err := exec.LookPath("docker")
+		if err != nil {
+			return "", fmt.Errorf("docker not found in PATH: %w", err)
+		}
+		cmd = exec.CommandContext(ctx, dockerPath, append([]string{"compose"}, args...)...)
 	default:
 		return "", fmt.Errorf("unsupported compose CLI version: %v", r.config.CLI)
 	}
 
 	cmd.Dir = composeDir
-
+	// TODO: Need to standardize and input compose values
 	cmd.Env = append(os.Environ(), "SERVER_VERSION=2.5.5")
 
-	var outBuf bytes.Buffer
-	cmd.Stdout = &outBuf
-	cmd.Stderr = &outBuf
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+
+	log := zerolog.Ctx(ctx)
+	log.Info().Str("command path", cmd.Path).Interface("args", cmd.Args).Msg(fmt.Sprintf("Running command: %s, %+v", cmd.Path, cmd.Args))
+	log.Info().Str("Working directory:", cmd.Dir).Msg("Working dir")
 
 	if err := cmd.Run(); err != nil {
-		return outBuf.String(), fmt.Errorf("%v failed: %w", cmd.Args, err)
+		exitCode := 0
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		}
+		return output.String(), fmt.Errorf("command %v failed (exit code %d): %w", cmd.Args, exitCode, err)
 	}
 
-	return outBuf.String(), nil
+	log.Info().Str("output", output.String()).Msg("Up output")
+
+	return output.String(), nil
 }

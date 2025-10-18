@@ -111,27 +111,27 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 		}
 	}
 
-	// log.Info().Str("serviceName", service.Name).Str("nextVersion", nextVersion.String()).Msg("Commiting changes")
-	// if err := bp.commitChanges(service.GitRepoFilePath, nextVersion); err != nil {
-	// 	return err
-	// }
+	log.Info().Str("serviceName", service.Name).Str("nextVersion", nextVersion.String()).Msg("Commiting changes")
+	if err := bp.commitChanges(service.GitRepoFilePath, nextVersion); err != nil {
+		return err
+	}
 
-	// log.Info().Str("serviceName", service.Name).Str("nextVersion", nextVersion.String()).Msg("Tagging and pushing changes")
-	// if err := bp.tagAndPushChanges(service.GitRepoFilePath, *nextVersion); err != nil {
-	// 	return err
-	// }
+	log.Info().Str("serviceName", service.Name).Str("nextVersion", nextVersion.String()).Msg("Tagging and pushing changes")
+	if err := bp.tagAndPushChanges(service.GitRepoFilePath, *nextVersion); err != nil {
+		return err
+	}
 
 	if serviceConfiguration.Npm != nil {
-		// log.Info().Str("serviceName", service.Name).Str("nextVersion", nextVersion.String()).Msg("Building image")
-		// if err := bp.dockerReleaser.BuildImage(
-		// 	ctx,
-		// 	service.Name,
-		// 	service.GitRepoFilePath,
-		// 	serviceConfiguration.Npm.Service.DockerfilePath,
-		// 	nextVersion,
-		// ); err != nil {
-		// 	return err
-		// }
+		log.Info().Str("serviceName", service.Name).Str("nextVersion", nextVersion.String()).Msg("Building image")
+		if err := bp.dockerReleaser.BuildImage(
+			ctx,
+			service.Name,
+			service.GitRepoFilePath,
+			serviceConfiguration.Npm.Service.DockerfilePath,
+			nextVersion,
+		); err != nil {
+			return err
+		}
 
 		log.Info().Str("serviceName", service.Name).Str("nextVersion", nextVersion.String()).Msg("Writing env vars")
 		if err := bp.envFileWriter.WriteEnvFile(
@@ -144,8 +144,7 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 		}
 
 		log.Info().Str("serviceName", service.Name).Str("nextVersion", nextVersion.String()).Msg("Starting service")
-		composePath := path.Join(service.GitRepoFilePath, service.Configuration.Npm.Service.DockerComposePath)
-		if _, err := bp.compose.Up(ctx, composePath); err != nil {
+		if _, err := bp.compose.Up(ctx, service.GitRepoFilePath); err != nil {
 			return err
 		}
 	}
