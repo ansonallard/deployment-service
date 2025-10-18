@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/ansonallard/deployment-service/internal/compose"
 	"github.com/ansonallard/deployment-service/internal/model"
 	"github.com/ansonallard/deployment-service/internal/releaser"
 	"github.com/ansonallard/deployment-service/internal/version"
@@ -33,8 +34,10 @@ type BackgroundProcessorConfig struct {
 	Versioner      *version.Versioner
 	SSHKeyPath     string
 	GitRepoOrigin  string
-	CiCommitAuthor CiCommitAuthor
+	CiCommitAuthor *CiCommitAuthor
 	DockerReleaser releaser.DockerReleaser
+	Compose        compose.ComposeRunner
+	EnvWriter      EnvFileWriter
 }
 
 type CiCommitAuthor struct {
@@ -50,12 +53,33 @@ func NewBackgroundProcessor(config BackgroundProcessorConfig) (BackgroundProcess
 	if err != nil {
 		return nil, fmt.Errorf("failed to load ssh key: %w", err)
 	}
+	if config.SSHKeyPath == "" {
+		return nil, fmt.Errorf("sshKeyPath not provided")
+	}
+	if config.GitRepoOrigin == "" {
+		return nil, fmt.Errorf("gitRepoOrigin not provided")
+	}
+	if config.CiCommitAuthor == nil {
+		return nil, fmt.Errorf("ciCommitAuthor not provided")
+	}
+	if config.DockerReleaser == nil {
+		return nil, fmt.Errorf("dockerReleaser not provided")
+	}
+	if config.Compose == nil {
+		return nil, fmt.Errorf("compose not provided")
+	}
+	if config.EnvWriter == nil {
+		return nil, fmt.Errorf("envwriter not provided")
+	}
+
 	return &backgroundProcessor{
 			versioner:       *config.Versioner,
 			gitRepoOrigin:   config.GitRepoOrigin,
 			sshAuth:         sshAuth,
 			ciCommmitAuthor: config.CiCommitAuthor,
 			dockerReleaser:  config.DockerReleaser,
+			compose:         config.Compose,
+			envFileWriter:   config.EnvWriter,
 		},
 		nil
 }
@@ -64,8 +88,10 @@ type backgroundProcessor struct {
 	versioner       version.Versioner
 	sshAuth         *ssh.PublicKeys
 	gitRepoOrigin   string
-	ciCommmitAuthor CiCommitAuthor
+	ciCommmitAuthor *CiCommitAuthor
 	dockerReleaser  releaser.DockerReleaser
+	compose         compose.ComposeRunner
+	envFileWriter   EnvFileWriter
 }
 
 func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *model.Service) error {
@@ -79,27 +105,49 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 	serviceConfiguration := service.Configuration
 	switch {
 	case serviceConfiguration.Npm != nil:
-		log.Info().Str("nextVersion", nextVersion.String()).Msg("Npm Service")
+		log.Info().Str("serviceName", service.Name).Str("serviceName", service.Name).Str("nextVersion", nextVersion.String()).Msg("Npm Service")
 		if err := bp.setPackageJsonVersion(service, nextVersion); err != nil {
 			return err
 		}
 	}
-	if err := bp.commitChanges(service.GitRepoFilePath, nextVersion); err != nil {
-		return err
-	}
 
-	if err := bp.tagAndPushChanges(service.GitRepoFilePath, *nextVersion); err != nil {
-		return err
-	}
+	// log.Info().Str("serviceName", service.Name).Str("nextVersion", nextVersion.String()).Msg("Commiting changes")
+	// if err := bp.commitChanges(service.GitRepoFilePath, nextVersion); err != nil {
+	// 	return err
+	// }
 
-	if err := bp.dockerReleaser.BuildImage(
-		ctx,
-		service.Name,
-		service.GitRepoFilePath,
-		serviceConfiguration.Npm.Service.DockerfilePath,
-		nextVersion,
-	); err != nil {
-		return err
+	// log.Info().Str("serviceName", service.Name).Str("nextVersion", nextVersion.String()).Msg("Tagging and pushing changes")
+	// if err := bp.tagAndPushChanges(service.GitRepoFilePath, *nextVersion); err != nil {
+	// 	return err
+	// }
+
+	if serviceConfiguration.Npm != nil {
+		// log.Info().Str("serviceName", service.Name).Str("nextVersion", nextVersion.String()).Msg("Building image")
+		// if err := bp.dockerReleaser.BuildImage(
+		// 	ctx,
+		// 	service.Name,
+		// 	service.GitRepoFilePath,
+		// 	serviceConfiguration.Npm.Service.DockerfilePath,
+		// 	nextVersion,
+		// ); err != nil {
+		// 	return err
+		// }
+
+		log.Info().Str("serviceName", service.Name).Str("nextVersion", nextVersion.String()).Msg("Writing env vars")
+		if err := bp.envFileWriter.WriteEnvFile(
+			ctx,
+			service.GitRepoFilePath,
+			service.Configuration.Npm.Service.EnvPath,
+			service.Configuration.Npm.Service.EnvVars,
+		); err != nil {
+			return err
+		}
+
+		log.Info().Str("serviceName", service.Name).Str("nextVersion", nextVersion.String()).Msg("Starting service")
+		composePath := path.Join(service.GitRepoFilePath, service.Configuration.Npm.Service.DockerComposePath)
+		if _, err := bp.compose.Up(ctx, composePath); err != nil {
+			return err
+		}
 	}
 
 	return nil

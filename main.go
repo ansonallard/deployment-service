@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 
+	"github.com/ansonallard/deployment-service/internal/compose"
 	"github.com/ansonallard/deployment-service/internal/controllers"
 	"github.com/ansonallard/deployment-service/internal/env"
 	"github.com/ansonallard/deployment-service/internal/ierr"
@@ -119,16 +120,24 @@ func main() {
 		DockerClient: dockerClient,
 	})
 
+	dockerCompose := compose.New(compose.Config{
+		CLI: compose.V1,
+	})
+
+	envWriter := service.NewEnvFileWriter()
+
 	versioner := version.NewVersioner()
 	backgroundProcessor, err := service.NewBackgroundProcessor(service.BackgroundProcessorConfig{
 		Versioner:     versioner,
 		SSHKeyPath:    env.GetSSHKeyPath(),
 		GitRepoOrigin: env.GetGitRepoOirign(),
-		CiCommitAuthor: service.CiCommitAuthor{
+		CiCommitAuthor: &service.CiCommitAuthor{
 			Name:  env.GetCICommitAuthorName(),
 			Email: env.GetCICommitAuthorEmail(),
 		},
 		DockerReleaser: dockerReleaser,
+		Compose:        dockerCompose,
+		EnvWriter:      envWriter,
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to instantiate background processor")
