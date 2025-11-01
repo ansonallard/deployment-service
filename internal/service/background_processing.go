@@ -15,7 +15,9 @@ import (
 	"github.com/ansonallard/deployment-service/internal/version"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/storer"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/rs/zerolog"
 )
@@ -24,6 +26,7 @@ const (
 	packageJSONFilePath   = "package.json"
 	packageJSONVersionKey = "version"
 	ciCommitMsgFormat     = "ci: Release version %s"
+	defaultOrigin         = "origin"
 )
 
 type BackgroundProcesseror interface {
@@ -96,6 +99,15 @@ type backgroundProcessor struct {
 
 func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *model.Service) error {
 	log := zerolog.Ctx(ctx)
+
+	shouldProcess, err := bp.shouldProcess(ctx, service)
+	if err != nil {
+		return err
+	}
+	if !shouldProcess {
+		return nil
+	}
+
 	nextVersion, err := bp.versioner.CalculateNextVersion(ctx, service.GitRepoFilePath)
 	if err != nil {
 		return err
@@ -150,6 +162,79 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 	}
 
 	return nil
+}
+
+func (bp *backgroundProcessor) shouldProcess(ctx context.Context, service *model.Service) (bool, error) {
+	repo, err := git.PlainOpen(service.GitRepoFilePath)
+	if err != nil {
+		return false, fmt.Errorf("failed to open repo: %w", err)
+	}
+
+	// Pull from remote
+	wt, err := repo.Worktree()
+	if err != nil {
+		return false, fmt.Errorf("failed to get worktree: %w", err)
+	}
+
+	err = wt.Pull(&git.PullOptions{
+		RemoteName: defaultOrigin,
+		Progress:   nil,
+		Force:      true,
+		Auth:       bp.sshAuth,
+	})
+	if err != nil && err != git.NoErrAlreadyUpToDate {
+		return false, fmt.Errorf("failed to pull: %w", err)
+	}
+
+	// Get current HEAD
+	ref, err := repo.Head()
+	if err != nil {
+		return false, fmt.Errorf("failed to get HEAD: %w", err)
+	}
+
+	c, err := repo.CommitObject(ref.Hash())
+	if err != nil {
+		return false, fmt.Errorf("failed to get commit object: %w", err)
+	}
+
+	tags, err := repo.Tags()
+	if err != nil {
+		return false, fmt.Errorf("failed to get tags: %w", err)
+	}
+
+	foundSemver := false
+	err = tags.ForEach(func(ref *plumbing.Reference) error {
+		// Try to resolve annotated tag objects
+		tagObj, err := repo.TagObject(ref.Hash())
+		var targetHash plumbing.Hash
+		if err == nil {
+			// Annotated tag -> resolve to its target
+			targetHash = tagObj.Target
+		} else {
+			// Lightweight tag -> points directly to commit
+			targetHash = ref.Hash()
+		}
+
+		// Compare tag's target to current commit
+		if targetHash != c.Hash {
+			return nil
+		}
+
+		tagName := ref.Name().Short()
+
+		// Attempt to parse as semver
+		if _, err := semver.NewVersion(tagName); err == nil {
+			foundSemver = true
+			return storer.ErrStop // stop iteration early
+		}
+
+		return nil
+	})
+	if err != nil && err != storer.ErrStop {
+		return false, fmt.Errorf("error iterating tags: %w", err)
+	}
+
+	return !foundSemver, nil
 }
 
 func (bp *backgroundProcessor) setPackageJsonVersion(service *model.Service, version *semver.Version) error {

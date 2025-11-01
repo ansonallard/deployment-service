@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"time"
 
 	"github.com/ansonallard/deployment-service/internal/compose"
 	"github.com/ansonallard/deployment-service/internal/controllers"
@@ -148,16 +149,38 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to ValidateStructAndOpenAPI")
 	}
 
+	interval, err := env.GetBackgroundProcessingInterval()
+	if err != nil {
+		panic("could not parse interval")
+	}
+
 	go func() {
-		log.Info().Msg("Waiting on messages from serviceChannel to start the background processing")
-		for channelEntry := range serviceChannel {
+		log.Info().Msg("Waiting on messages from serviceChannel to start background processing")
+		for service := range serviceChannel {
 			go func(service *model.Service) {
-				log.Info().Interface("service", service).Str("serviceName", service.Name).
-					Msg("New Service created, starting background processing")
-				if err := backgroundProcessor.ProcessService(ctx, service); err != nil {
-					log.Error().Err(err).Interface("service", service).Str("serviceName", service.Name).Msg("error when processing service")
+				log.Info().
+					Str("serviceName", service.Name).
+					Msg("New service created, starting background processing")
+
+				// Create ticker for repeating processing
+				ticker := time.NewTicker(interval)
+				defer ticker.Stop()
+
+				for {
+					select {
+					case <-ctx.Done():
+						log.Info().Str("serviceName", service.Name).
+							Msg("Stopping background processing due to context cancel")
+						return
+					case <-ticker.C:
+						if err := backgroundProcessor.ProcessService(ctx, service); err != nil {
+							log.Error().Err(err).
+								Str("serviceName", service.Name).
+								Msg("Error when processing service")
+						}
+					}
 				}
-			}(channelEntry)
+			}(service)
 		}
 	}()
 

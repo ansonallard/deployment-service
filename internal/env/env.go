@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 func GetPort() string {
@@ -44,6 +45,10 @@ func GetCICommitAuthorEmail() string {
 
 func GetDockerHome() string {
 	return getOptionalEnvVarDefault("DOCKER_HOME")
+}
+
+func GetBackgroundProcessingInterval() (time.Duration, error) {
+	return time.ParseDuration(getRequiredEnvVar("BACKGROUND_PROCESSING_INTERVAL"))
 }
 
 func getRequiredEnvVar(incomingEnvVar string) string {
