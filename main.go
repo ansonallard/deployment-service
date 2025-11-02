@@ -30,6 +30,10 @@ import (
 
 //go:generate go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen -config=types.cfg.yaml public/deployment-service.openapi.yaml
 
+const (
+	defaultIPv4OpenAddress = "0.0.0.0"
+)
+
 func main() {
 	ctx := zeroLogConfiguration()
 	log := zerolog.Ctx(ctx)
@@ -238,7 +242,7 @@ func main() {
 
 	port := env.GetPort()
 	log.Info().Str("port", port).Msgf("Server starting on :%s", port)
-	ginRouter.Run(fmt.Sprintf(":%s", port))
+	ginRouter.Run(fmt.Sprintf("%s:%s", defaultIPv4OpenAddress, port))
 }
 
 func errorHandler(err error, c *gin.Context) {
