@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -20,6 +19,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/storer"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/rs/zerolog"
+	"github.com/tidwall/sjson"
 )
 
 const (
@@ -248,15 +248,12 @@ func (bp *backgroundProcessor) setPackageJsonVersion(service *model.Service, ver
 	if err != nil {
 		return err
 	}
-	var packageJson map[string]any
-	if err := json.Unmarshal(fileBytes, &packageJson); err != nil {
-		return err
-	}
-	packageJson[packageJSONVersionKey] = version.String()
-	packageJsonBytes, err := json.Marshal(packageJson)
+
+	packageJsonBytes, err := sjson.SetBytes(fileBytes, packageJSONVersionKey, version.String())
 	if err != nil {
 		return err
 	}
+
 	if err := os.WriteFile(packageJsonFilePath, packageJsonBytes, 0644); err != nil {
 		return nil
 	}
