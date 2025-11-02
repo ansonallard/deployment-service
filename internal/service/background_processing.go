@@ -156,7 +156,7 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 		}
 
 		log.Info().Str("serviceName", service.Name).Str("nextVersion", nextVersion.String()).Msg("Starting service")
-		if _, err := bp.compose.Up(ctx, service.GitRepoFilePath); err != nil {
+		if _, err := bp.compose.Up(ctx, service.GitRepoFilePath, nextVersion); err != nil {
 			return err
 		}
 	}

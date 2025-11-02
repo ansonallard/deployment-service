@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/rs/zerolog"
 )
 
@@ -14,13 +15,14 @@ import (
 type CLIType int
 
 const (
-	V1 CLIType = iota // docker-compose
-	V2                // docker compose
+	V1                      CLIType = iota // docker-compose
+	V2                                     // docker compose
+	dockerComposeVersionKey = "VERSION"
 )
 
 // ComposeRunner defines the interface for running docker-compose commands.
 type ComposeRunner interface {
-	Up(ctx context.Context, composeDir string) (string, error)
+	Up(ctx context.Context, composeDir string, version *semver.Version) (string, error)
 	Down(ctx context.Context, composeDir string) (string, error)
 }
 
@@ -50,16 +52,16 @@ func New(config Config) ComposeRunner {
 }
 
 // Up runs `docker-compose up -d` or `docker compose up -d`.
-func (r *runner) Up(ctx context.Context, composeDir string) (string, error) {
-	return r.runComposeCommand(ctx, composeDir, "up", "-d")
+func (r *runner) Up(ctx context.Context, composeDir string, version *semver.Version) (string, error) {
+	return r.runComposeCommand(ctx, version, composeDir, "up", "-d")
 }
 
 // Down runs `docker-compose down` or `docker compose down`.
 func (r *runner) Down(ctx context.Context, composeDir string) (string, error) {
-	return r.runComposeCommand(ctx, composeDir, "down")
+	return r.runComposeCommand(ctx, nil, composeDir, "down")
 }
 
-func (r *runner) runComposeCommand(ctx context.Context, composeDir string, args ...string) (string, error) {
+func (r *runner) runComposeCommand(ctx context.Context, version *semver.Version, composeDir string, args ...string) (string, error) {
 	info, err := os.Stat(composeDir)
 	if err != nil {
 		return "", fmt.Errorf("composeDir invalid: %w", err)
@@ -85,7 +87,7 @@ func (r *runner) runComposeCommand(ctx context.Context, composeDir string, args 
 
 	cmd.Dir = composeDir
 	// TODO: Need to standardize and input compose values
-	cmd.Env = append(os.Environ(), "SERVER_VERSION=2.5.5")
+	cmd.Env = append(os.Environ(), r.constructVersionEnvVar(version))
 
 	var output bytes.Buffer
 	cmd.Stdout = &output
@@ -106,4 +108,8 @@ func (r *runner) runComposeCommand(ctx context.Context, composeDir string, args 
 	log.Info().Str("output", output.String()).Msg("Up output")
 
 	return output.String(), nil
+}
+
+func (r *runner) constructVersionEnvVar(version *semver.Version) string {
+	return fmt.Sprintf("%s=%s", dockerComposeVersionKey, version.String())
 }
