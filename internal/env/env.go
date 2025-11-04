@@ -51,6 +51,14 @@ func GetBackgroundProcessingInterval() (time.Duration, error) {
 	return time.ParseDuration(getRequiredEnvVar("BACKGROUND_PROCESSING_INTERVAL"))
 }
 
+func GetArtifactPrefix() string {
+	return getRequiredEnvVar("ARTIFACT_PREFIX")
+}
+
+func GetDockerRegistryAuth() string {
+	return getRequiredEnvVar("DOCKER_REGISTRY_AUTH")
+}
+
 func getRequiredEnvVar(incomingEnvVar string) string {
 	envVar := os.Getenv(incomingEnvVar)
 	if envVar == "" {

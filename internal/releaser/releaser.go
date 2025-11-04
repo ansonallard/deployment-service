@@ -10,32 +10,48 @@ import (
 	"path/filepath"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/build"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
+	"github.com/rs/zerolog"
 )
 
 type DockerReleaser interface {
-	BuildImage(ctx context.Context, imageName, repositoryPath, dockerfilePath string, version *semver.Version) error
+	BuildImage(ctx context.Context, serviceName, repositoryPath, dockerfilePath string, version *semver.Version) error
+	PushImage(ctx context.Context, serviceName string, version *semver.Version) error
 }
 
 type dockerReleaser struct {
-	dockerclient *client.Client
+	dockerclient   *client.Client
+	artifactPrefix string
+	registryAuth   string
 }
 
 type DockerReleaserConfig struct {
-	DockerClient *client.Client
+	DockerClient   *client.Client
+	ArtifactPrefix string
+	RegistryAuth   string
 }
 
-func NewDockerReleaser(config DockerReleaserConfig) *dockerReleaser {
-	return &dockerReleaser{
-		dockerclient: config.DockerClient,
+func NewDockerReleaser(config DockerReleaserConfig) (*dockerReleaser, error) {
+	if config.DockerClient == nil {
+		return nil, fmt.Errorf("dockerClient not provided")
 	}
+	if config.ArtifactPrefix == "" {
+		return nil, fmt.Errorf("artifactPrefix not provided")
+	}
+	if config.RegistryAuth == "" {
+		return nil, fmt.Errorf("registryAuth not provided")
+	}
+	return &dockerReleaser{
+		dockerclient:   config.DockerClient,
+		artifactPrefix: config.ArtifactPrefix,
+		registryAuth:   config.RegistryAuth,
+	}, nil
 }
 
 // BuildImage builds the Docker image using the official Docker SDK.
 func (r *dockerReleaser) BuildImage(ctx context.Context, imageName, repositoryPath, dockerfilePath string, version *semver.Version) error {
-	tag := fmt.Sprintf("%s:%s", imageName, version.String())
-
 	// Create build context tarball
 	buildCtx, err := createTar(repositoryPath)
 	if err != nil {
@@ -43,9 +59,11 @@ func (r *dockerReleaser) BuildImage(ctx context.Context, imageName, repositoryPa
 	}
 	defer buildCtx.Close()
 
+	localTag := fmt.Sprintf("%s:%s", imageName, version.String())
+
 	// Run docker build
-	resp, err := r.dockerclient.ImageBuild(ctx, buildCtx, types.ImageBuildOptions{
-		Tags:        []string{tag},
+	resp, err := r.dockerclient.ImageBuild(ctx, buildCtx, build.ImageBuildOptions{
+		Tags:        []string{localTag, r.createArtifactTag(imageName, version)},
 		Dockerfile:  dockerfilePath,
 		Remove:      true,
 		ForceRemove: true,
@@ -113,71 +131,23 @@ func createTar(dir string) (io.ReadCloser, error) {
 	return io.NopCloser(bytes.NewReader(buf.Bytes())), nil
 }
 
-// // PushImage pushes the built Docker image to the registry.
-// func (r *Releaser) PushImage() error {
-// 	ctx := context.Background()
+// PushImage pushes the built Docker image to the registry.
+func (r *dockerReleaser) PushImage(ctx context.Context, serviceName string, version *semver.Version) error {
+	log := zerolog.Ctx(ctx)
 
-// 	// Create go-sdk client
-// 	dockerClient, err := client.New(ctx)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to create docker client: %w", err)
-// 	}
-// 	defer dockerClient.Close()
+	remoteImageTag := r.createArtifactTag(serviceName, version)
+	log.Info().Str("serviceName", serviceName).Str("nextVersion", version.String()).
+		Str("remoteImageTage", remoteImageTag).Msg("Pushing image")
+	// Push the image
+	_, err := r.dockerclient.ImagePush(ctx, remoteImageTag, image.PushOptions{
+		RegistryAuth: r.registryAuth,
+	})
+	if err != nil {
+		return fmt.Errorf("image push failed: %w", err)
+	}
+	return nil
+}
 
-// 	tag := fmt.Sprintf("%s:%s", r.ImageName, r.NextVersion)
-
-// 	// Push the image
-// 	// _, err = dockerClient.ImagePush(ctx, tag, types.ImagePushOptions{
-// 	// 	RegistryAuth: registry.AuthConfig{
-// 	// 		Username: "your-username",
-// 	// 		Password: "your-password",
-// 	// 	},
-// 	// })
-// 	if err != nil {
-// 		return fmt.Errorf("image push failed: %w", err)
-// 	}
-
-// 	return nil
-// }
-
-// UpdateVersionFiles updates version information in relevant files.
-// func (r *Releaser) UpdateVersionFiles() error {
-// 	// Update package.json version
-// 	packageJSONPath := filepath.Join(r.RepositoryPath, "package.json")
-// 	// Logic to update package.json version...
-
-// 	// Optionally update openapi.yaml version
-// 	if r.UpdateOpenAPI {
-// 		openAPIPath := filepath.Join(r.RepositoryPath, "src", "public", "openapi.yaml")
-// 		// Logic to update openapi.yaml version...
-// 	}
-
-// 	return nil
-// }
-
-// // CommitAndTag commits the changes and tags the release.
-// func (r *Releaser) CommitAndTag() error {
-// 	// Logic to commit changes and tag the release...
-// 	return nil
-// }
-
-// BuildAndRelease orchestrates the entire release process.
-// func (r *dockerReleaser) BuildAndRelease() error {
-// 	if err := r.BuildImage(); err != nil {
-// 		return fmt.Errorf("failed to build image: %w", err)
-// 	}
-
-// 	// if err := r.PushImage(); err != nil {
-// 	// 	return fmt.Errorf("failed to push image: %w", err)
-// 	// }
-
-// 	// if err := r.UpdateVersionFiles(); err != nil {
-// 	// 	return fmt.Errorf("failed to update version files: %w", err)
-// 	// }
-
-// 	// if err := r.CommitAndTag(); err != nil {
-// 	// 	return fmt.Errorf("failed to commit and tag: %w", err)
-// 	// }
-
-// 	return nil
-// }
+func (r *dockerReleaser) createArtifactTag(serviceName string, version *semver.Version) string {
+	return fmt.Sprintf("%s/%s:%s", r.artifactPrefix, serviceName, version.String())
+}

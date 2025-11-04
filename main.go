@@ -121,9 +121,14 @@ func main() {
 	}
 	defer dockerClient.Close()
 
-	dockerReleaser := releaser.NewDockerReleaser(releaser.DockerReleaserConfig{
-		DockerClient: dockerClient,
+	dockerReleaser, err := releaser.NewDockerReleaser(releaser.DockerReleaserConfig{
+		DockerClient:   dockerClient,
+		ArtifactPrefix: env.GetArtifactPrefix(),
+		RegistryAuth:   env.GetDockerRegistryAuth(),
 	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to instantiate docker releaser")
+	}
 
 	dockerCompose := compose.New(compose.Config{
 		CLI: compose.V2,
@@ -155,7 +160,6 @@ func main() {
 
 	interval, err := env.GetBackgroundProcessingInterval()
 	if err != nil {
-		panic("could not parse interval")
 	}
 
 	go func() {
@@ -242,7 +246,9 @@ func main() {
 
 	port := env.GetPort()
 	log.Info().Str("port", port).Msgf("Server starting on :%s", port)
-	ginRouter.Run(fmt.Sprintf("%s:%s", defaultIPv4OpenAddress, port))
+	if err := ginRouter.Run(fmt.Sprintf("%s:%s", defaultIPv4OpenAddress, port)); err != nil {
+		log.Fatal().Err(err).Msg("Failed to run gin router")
+	}
 }
 
 func errorHandler(err error, c *gin.Context) {

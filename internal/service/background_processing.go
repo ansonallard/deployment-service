@@ -145,6 +145,10 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 			return err
 		}
 
+		if err := bp.dockerReleaser.PushImage(ctx, service.Name, nextVersion); err != nil {
+			return err
+		}
+
 		log.Info().Str("serviceName", service.Name).Str("nextVersion", nextVersion.String()).Msg("Writing env vars")
 		if err := bp.envFileWriter.WriteEnvFile(
 			ctx,
