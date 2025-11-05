@@ -55,9 +55,19 @@ func GetArtifactPrefix() string {
 	return getRequiredEnvVar("ARTIFACT_PREFIX")
 }
 
-func GetDockerRegistryAuth() string {
-	return getRequiredEnvVar("DOCKER_REGISTRY_AUTH")
+func GetDockerServer() string {
+	return getRequiredEnvVar("DOCKER_SERVER")
 }
+
+func GetDockerUserName() string {
+	return getRequiredEnvVar("DOCKER_USERNAME")
+}
+
+func GetDockerPAT() string {
+	return getRequiredEnvVar("DOCKER_PAT")
+}
+
+
 
 func getRequiredEnvVar(incomingEnvVar string) string {
 	envVar := os.Getenv(incomingEnvVar)

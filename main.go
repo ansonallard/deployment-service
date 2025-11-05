@@ -124,7 +124,11 @@ func main() {
 	dockerReleaser, err := releaser.NewDockerReleaser(releaser.DockerReleaserConfig{
 		DockerClient:   dockerClient,
 		ArtifactPrefix: env.GetArtifactPrefix(),
-		RegistryAuth:   env.GetDockerRegistryAuth(),
+		RegistryAuth:   &releaser.DockerAuth{
+			Username: env.GetDockerUserName(),
+			PersonalAccessToken: env.GetDockerPAT(),
+			ServerAddress: env.GetDockerServer(),
+		},
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to instantiate docker releaser")

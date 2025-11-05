@@ -2,8 +2,11 @@ package releaser
 
 import (
 	"archive/tar"
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -12,25 +15,33 @@ import (
 	"github.com/Masterminds/semver/v3"
 	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
 	"github.com/rs/zerolog"
 )
+
 
 type DockerReleaser interface {
 	BuildImage(ctx context.Context, serviceName, repositoryPath, dockerfilePath string, version *semver.Version) error
 	PushImage(ctx context.Context, serviceName string, version *semver.Version) error
 }
 
+type DockerAuth struct {
+	Username string
+	PersonalAccessToken string
+	ServerAddress string
+}
+
 type dockerReleaser struct {
 	dockerclient   *client.Client
 	artifactPrefix string
-	registryAuth   string
+	registryAuth *DockerAuth
 }
 
 type DockerReleaserConfig struct {
 	DockerClient   *client.Client
 	ArtifactPrefix string
-	RegistryAuth   string
+	RegistryAuth   *DockerAuth
 }
 
 func NewDockerReleaser(config DockerReleaserConfig) (*dockerReleaser, error) {
@@ -40,7 +51,7 @@ func NewDockerReleaser(config DockerReleaserConfig) (*dockerReleaser, error) {
 	if config.ArtifactPrefix == "" {
 		return nil, fmt.Errorf("artifactPrefix not provided")
 	}
-	if config.RegistryAuth == "" {
+	if config.RegistryAuth == nil {
 		return nil, fmt.Errorf("registryAuth not provided")
 	}
 	return &dockerReleaser{
@@ -135,18 +146,59 @@ func createTar(dir string) (io.ReadCloser, error) {
 func (r *dockerReleaser) PushImage(ctx context.Context, serviceName string, version *semver.Version) error {
 	log := zerolog.Ctx(ctx)
 
+	// Note: This code works, but it is failing to push the image to the artifact registry. Need to debug it's configuration (nginx)
+
 	remoteImageTag := r.createArtifactTag(serviceName, version)
-	log.Info().Str("serviceName", serviceName).Str("nextVersion", version.String()).
-		Str("remoteImageTage", remoteImageTag).Msg("Pushing image")
+	log.Info().
+		Str("serviceName", serviceName).
+		Str("nextVersion", version.String()).
+		Str("remoteImageTag", remoteImageTag).
+		Msg("Pushing image")
+
+	authConfig := registry.AuthConfig{
+		Username:      r.registryAuth.Username,
+		Password:      r.registryAuth.PersonalAccessToken,
+		ServerAddress: r.registryAuth.ServerAddress,
+	}
+
+	authJSON, err := json.Marshal(authConfig)
+	if err != nil {
+		return fmt.Errorf("failed to marshal auth config: %w", err)
+	}
+
 	// Push the image
-	_, err := r.dockerclient.ImagePush(ctx, remoteImageTag, image.PushOptions{
-		RegistryAuth: r.registryAuth,
+	response, err := r.dockerclient.ImagePush(ctx, remoteImageTag, image.PushOptions{
+		RegistryAuth: base64.StdEncoding.EncodeToString(authJSON),
 	})
 	if err != nil {
 		return fmt.Errorf("image push failed: %w", err)
 	}
+	defer response.Close()
+
+	// Stream response line by line
+	scanner := bufio.NewScanner(response)
+	for scanner.Scan() {
+		line := scanner.Text()
+		log.Info().
+			Str("serviceName", serviceName).
+			Str("version", version.String()).
+			Str("imagePushOutput", line).
+			Msg("Image push progress")
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("failed reading push output: %w", err)
+	}
+
+	log.Info().
+		Str("serviceName", serviceName).
+		Str("version", version.String()).
+		Msg("Image push completed")
+
 	return nil
 }
+
+
 
 func (r *dockerReleaser) createArtifactTag(serviceName string, version *semver.Version) string {
 	return fmt.Sprintf("%s/%s:%s", r.artifactPrefix, serviceName, version.String())
