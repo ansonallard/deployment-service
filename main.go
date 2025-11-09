@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"path"
 	"reflect"
 	"time"
 
@@ -32,10 +34,29 @@ import (
 
 const (
 	defaultIPv4OpenAddress = "0.0.0.0"
+	defaultLogFileName     = "combined.log"
+	serviceName            = "deployment-service"
+	serviceVersion         = "0.1.4"
 )
 
 func main() {
-	ctx := zeroLogConfiguration()
+	var logFile *os.File
+
+	if !env.IsDevMode() {
+		var err error
+		// Open or create the log file
+		logFile, err = os.OpenFile(
+			path.Join(env.GetLoggingDir(), defaultLogFileName),
+			os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+			0644,
+		)
+		if err != nil {
+			panic(err) // or handle error appropriately
+		}
+		defer logFile.Close()
+	}
+
+	ctx := zeroLogConfiguration(logFile)
 	log := zerolog.Ctx(ctx)
 
 	if err := godotenv.Load(); err != nil {
@@ -124,10 +145,10 @@ func main() {
 	dockerReleaser, err := releaser.NewDockerReleaser(releaser.DockerReleaserConfig{
 		DockerClient:   dockerClient,
 		ArtifactPrefix: env.GetArtifactPrefix(),
-		RegistryAuth:   &releaser.DockerAuth{
-			Username: env.GetDockerUserName(),
+		RegistryAuth: &releaser.DockerAuth{
+			Username:            env.GetDockerUserName(),
 			PersonalAccessToken: env.GetDockerPAT(),
-			ServerAddress: env.GetDockerServer(),
+			ServerAddress:       env.GetDockerServer(),
 		},
 	})
 	if err != nil {
@@ -272,10 +293,27 @@ func abortWithStatusResponse(code int, err error, c *gin.Context) {
 	c.AbortWithStatusJSON(code, map[string]string{"message": err.Error()})
 }
 
-func zeroLogConfiguration() context.Context {
+func zeroLogConfiguration(logFile *os.File) context.Context {
+	if env.IsDevMode() {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	} else {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	}
+
+	var writer io.Writer
+	if logFile != nil {
+		writer = io.MultiWriter(os.Stdout, logFile)
+	} else {
+		writer = os.Stdout
+	}
+
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	logger := zerolog.New(os.Stdout)
+	logger := zerolog.New(writer).With().
+		Timestamp().
+		Str("serviceName", serviceName).
+		Str("serviceVersion", serviceVersion).
+		Logger()
+
 	ctx := context.Background()
 
 	// Attach the Logger to the context.Context

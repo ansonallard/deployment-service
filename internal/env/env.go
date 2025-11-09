@@ -67,7 +67,9 @@ func GetDockerPAT() string {
 	return getRequiredEnvVar("DOCKER_PAT")
 }
 
-
+func GetLoggingDir() string {
+	return getRequiredEnvVar("LOGGING_DIR")
+}
 
 func getRequiredEnvVar(incomingEnvVar string) string {
 	envVar := os.Getenv(incomingEnvVar)
