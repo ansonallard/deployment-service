@@ -9,7 +9,11 @@ Service to manage the CI/CD of ansonallard.com self hosted services.
 3. Run `go build .`
 4. Execute the binary file, `./deployment-service`
 
-## Linux Firewall rules
+---
+
+## Running in Production
+
+### Linux Firewall rules
 
 Ensure that the linux host running the binary allows traffic from external hosts on the port.
 
@@ -25,3 +29,7 @@ Add firewall rule using:
 sudo ufw allow <port>>/tcp
 sudo ufw reload
 ```
+
+### Docker Configuration
+
+See instructions for communicating with Gitea here: https://github.com/ansonallard/gitea_config
