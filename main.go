@@ -36,11 +36,15 @@ const (
 	defaultIPv4OpenAddress = "0.0.0.0"
 	defaultLogFileName     = "combined.log"
 	serviceName            = "deployment-service"
-	serviceVersion         = "0.1.5"
+	serviceVersion         = "0.1.6"
 )
 
 func main() {
 	var logFile *os.File
+
+	if err := godotenv.Load(); err != nil {
+		panic("could not load .env file")
+	}
 
 	if !env.IsDevMode() {
 		var err error
@@ -58,10 +62,6 @@ func main() {
 
 	ctx := zeroLogConfiguration(logFile)
 	log := zerolog.Ctx(ctx)
-
-	if err := godotenv.Load(); err != nil {
-		log.Fatal().Msg("could not load .env file")
-	}
 
 	log.Info().Msg("Loaded .env file")
 
