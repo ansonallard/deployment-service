@@ -9,6 +9,11 @@ Service to manage the CI/CD of ansonallard.com self hosted services.
 3. Run `go build .`
 4. Execute the binary file, `./deployment-service`
 
+### Update service version
+
+1. Commit all changes
+2. Run `update_service_version.sh -v <semverVersion>`
+
 ---
 
 ## Running in Production
