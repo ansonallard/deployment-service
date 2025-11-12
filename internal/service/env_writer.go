@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/rs/zerolog"
 )
 
 // EnvFileWriter defines behavior for writing environment variable files.
@@ -30,6 +32,7 @@ func NewEnvFileWriter() EnvFileWriter {
 // at the specified directory path. It validates that the directory exists
 // and overwrites the file if it already exists.
 func (w *envFileWriter) WriteEnvFile(ctx context.Context, path, envFile string, envVars map[string]any) error {
+	log := zerolog.Ctx(ctx)
 	if path == "" {
 		return fmt.Errorf("path cannot be empty")
 	}
@@ -37,7 +40,8 @@ func (w *envFileWriter) WriteEnvFile(ctx context.Context, path, envFile string, 
 		return fmt.Errorf("envFile cannot be empty")
 	}
 	if len(envVars) == 0 {
-		return fmt.Errorf("no environment variables provided")
+		log.Warn().Msg("Env vars is empty, not commit env var files to host.")
+		return nil
 	}
 
 	select {
