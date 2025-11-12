@@ -36,7 +36,6 @@ const (
 	defaultIPv4OpenAddress = "0.0.0.0"
 	defaultLogFileName     = "combined.log"
 	serviceName            = "deployment-service"
-	serviceVersion         = "0.1.6"
 )
 
 func main() {
