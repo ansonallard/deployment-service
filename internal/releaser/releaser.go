@@ -20,22 +20,21 @@ import (
 	"github.com/rs/zerolog"
 )
 
-
 type DockerReleaser interface {
 	BuildImage(ctx context.Context, serviceName, repositoryPath, dockerfilePath string, version *semver.Version) error
 	PushImage(ctx context.Context, serviceName string, version *semver.Version) error
 }
 
 type DockerAuth struct {
-	Username string
+	Username            string
 	PersonalAccessToken string
-	ServerAddress string
+	ServerAddress       string
 }
 
 type dockerReleaser struct {
 	dockerclient   *client.Client
 	artifactPrefix string
-	registryAuth *DockerAuth
+	registryAuth   *DockerAuth
 }
 
 type DockerReleaserConfig struct {
@@ -150,7 +149,7 @@ func (r *dockerReleaser) PushImage(ctx context.Context, serviceName string, vers
 
 	remoteImageTag := r.createArtifactTag(serviceName, version)
 	log.Info().
-		Str("serviceName", serviceName).
+		Str("service", serviceName).
 		Str("nextVersion", version.String()).
 		Str("remoteImageTag", remoteImageTag).
 		Msg("Pushing image")
@@ -180,7 +179,7 @@ func (r *dockerReleaser) PushImage(ctx context.Context, serviceName string, vers
 	for scanner.Scan() {
 		line := scanner.Text()
 		log.Info().
-			Str("serviceName", serviceName).
+			Str("service", serviceName).
 			Str("version", version.String()).
 			Str("imagePushOutput", line).
 			Msg("Image push progress")
@@ -191,14 +190,12 @@ func (r *dockerReleaser) PushImage(ctx context.Context, serviceName string, vers
 	}
 
 	log.Info().
-		Str("serviceName", serviceName).
+		Str("service", serviceName).
 		Str("version", version.String()).
 		Msg("Image push completed")
 
 	return nil
 }
-
-
 
 func (r *dockerReleaser) createArtifactTag(serviceName string, version *semver.Version) string {
 	return fmt.Sprintf("%s/%s:%s", r.artifactPrefix, serviceName, version.String())

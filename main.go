@@ -192,7 +192,7 @@ func main() {
 		for service := range serviceChannel {
 			go func(service *model.Service) {
 				log.Info().
-					Str("serviceName", service.Name).
+					Str("service", service.Name).
 					Msg("New service created, starting background processing")
 
 				// Create ticker for repeating processing
@@ -202,13 +202,13 @@ func main() {
 				for {
 					select {
 					case <-ctx.Done():
-						log.Info().Str("serviceName", service.Name).
+						log.Info().Str("service", service.Name).
 							Msg("Stopping background processing due to context cancel")
 						return
 					case <-ticker.C:
 						if err := backgroundProcessor.ProcessService(ctx, service); err != nil {
 							log.Error().Err(err).
-								Str("serviceName", service.Name).
+								Str("service", service.Name).
 								Msg("Error when processing service")
 						}
 					}

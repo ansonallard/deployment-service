@@ -79,7 +79,7 @@ func (ds *deploymentService) CollectExistingServicesForBackgroundProcessing(ctx 
 		Msgf("Collected %d pre-existing services. Sending notifications for processing", len(services))
 	for _, service := range services {
 		ds.backgroundJobChannel <- service
-		log.Info().Interface("service", service).Str("serviceName", service.Name).Msg("Notified for processing")
+		log.Info().Interface("service", service).Msg("Notified for processing")
 	}
 	return nil
 }
