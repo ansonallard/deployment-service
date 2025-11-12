@@ -1,0 +1,15 @@
+[Unit]
+Description=Deployment Service
+After=network.target
+
+[Service]
+Type=simple
+User=your-username
+WorkingDirectory=/path/to/your/deployment-service
+EnvironmentFile=/path/to/your/deployment-service/.env
+ExecStart=/path/to/your/deployment-service/deployment-service
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
