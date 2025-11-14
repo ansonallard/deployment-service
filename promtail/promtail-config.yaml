@@ -16,7 +16,6 @@ scrape_configs:
         labels:
           job: deployment-service
           __path__: /logs/combined.log
-    
     pipeline_stages:
       # Parse the JSON log line
       - json:
@@ -26,14 +25,12 @@ scrape_configs:
             timestamp: time
             service_name: serviceName
             service_version: serviceVersion
-            
       # Extract labels from the parsed JSON
       - labels:
           level:
           service_name:
           service_version:
-      
-      # Use the log's timestamp (Unix timestamp)
+      # Use the log's timestamp in RFC3339 format
       - timestamp:
           source: timestamp
-          format: Unix
+          format: RFC3339

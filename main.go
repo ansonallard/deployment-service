@@ -306,7 +306,7 @@ func zeroLogConfiguration(logFile *os.File) context.Context {
 		writer = os.Stdout
 	}
 
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	zerolog.TimeFieldFormat = time.RFC3339
 	logger := zerolog.New(writer).With().
 		Timestamp().
 		Str("serviceName", serviceName).
