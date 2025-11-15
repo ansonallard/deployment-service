@@ -221,11 +221,15 @@ func main() {
 	}
 
 	ginRouter.Any("/*path", func(c *gin.Context) {
+		log.Info().Interface("request", c.Request).Msg("API Request")
+		startTime := time.Now().UTC()
+
 		route, pathParams, err := router.FindRoute(c.Request)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Error finding route: %v", err)})
 			return
 		}
+		log.Info().Interface("route", route).Interface("pathParams", pathParams).Msg("Route and path params")
 
 		firstSuccessfulResponseCode, err := openapi.GetFirstSuccessfulStatusCode(route.Operation.Responses)
 		if err != nil {
@@ -253,18 +257,19 @@ func main() {
 		case 1:
 			err, ok := result[0].Interface().(error)
 			if ok {
-				errorHandler(err, c)
+				errorHandler(ctx, err, c)
 				return
 			}
 		case 2:
 			methodResult = result[0].Interface()
 			err, ok := result[1].Interface().(error)
 			if ok {
-				errorHandler(err, c)
+				errorHandler(ctx, err, c)
 				return
 			}
 		}
 
+		log.Info().Int("status", firstSuccessfulResponseCode).Interface("response", methodResult).TimeDiff("latency", time.Now().UTC(), startTime).Msg("API Response")
 		c.JSON(firstSuccessfulResponseCode, methodResult)
 	})
 
@@ -275,20 +280,23 @@ func main() {
 	}
 }
 
-func errorHandler(err error, c *gin.Context) {
+func errorHandler(ctx context.Context, err error, c *gin.Context) {
 	switch err.(type) {
 	case *ierr.UnAuthorizedError:
-		abortWithStatusResponse(http.StatusUnauthorized, err, c)
+		abortWithStatusResponse(ctx, http.StatusUnauthorized, err, c)
 	case *ierr.NotFoundError:
-		abortWithStatusResponse(http.StatusNotFound, err, c)
+		abortWithStatusResponse(ctx, http.StatusNotFound, err, c)
 	case *ierr.ConflictError:
-		abortWithStatusResponse(http.StatusConflict, err, c)
+		abortWithStatusResponse(ctx, http.StatusConflict, err, c)
 	default:
-		abortWithStatusResponse(http.StatusInternalServerError, err, c)
+		abortWithStatusResponse(ctx, http.StatusInternalServerError, err, c)
 	}
 }
 
-func abortWithStatusResponse(code int, err error, c *gin.Context) {
+func abortWithStatusResponse(ctx context.Context, code int, err error, c *gin.Context) {
+	log := zerolog.Ctx(ctx)
+	log.Warn().Err(err).Int("status", code).Interface("request", c.Request).Msg("API Response Error")
+
 	c.AbortWithStatusJSON(code, map[string]string{"message": err.Error()})
 }
 
