@@ -59,6 +59,24 @@ Main configuration items include:
     - `dockerfilePath`
     - `dockerComposePath`
 
+### OpenAPI workflow
+
+Callers can register openAPI specs and have the deployment service auto generate and persist client libraries for them. Here is the onboarding workflow:
+
+- Customer configures openapi spec, specifying:
+  - Git repo containing spec
+  - File path to openapi spec
+  - the name of the model
+  - Client libraries to configure and their library names (this could just be standardized across package managers)
+- Deployment service clones repo and verifies that the openapi spec file exists at the provided location
+- Updates version on model, commits, tags, and pushes changes to upstream
+- If they don't exist, service creates local git repos for each specified client library
+- Service constructs boiler plate for client libraries
+- Service copies openapi spec to client library
+- Service commits, tags, and pushes (optionally creates) client library to remote source control (could be gitea or github)
+- Service builds, packages, and persists client library to artifact store
+- Customers can consume client library from artifact registry
+
 ## API Endpoints
 
 - `POST /services`
