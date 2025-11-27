@@ -189,30 +189,7 @@ func main() {
 	go func() {
 		log.Info().Msg("Waiting on messages from serviceChannel to start background processing")
 		for service := range serviceChannel {
-			go func(service *model.Service) {
-				log.Info().
-					Str("service", service.Name).
-					Msg("New service created, starting background processing")
-
-				// Create ticker for repeating processing
-				ticker := time.NewTicker(interval)
-				defer ticker.Stop()
-
-				for {
-					select {
-					case <-ctx.Done():
-						log.Info().Str("service", service.Name).
-							Msg("Stopping background processing due to context cancel")
-						return
-					case <-ticker.C:
-						if err := backgroundProcessor.ProcessService(ctx, service); err != nil {
-							log.Error().Err(err).
-								Str("service", service.Name).
-								Msg("Error when processing service")
-						}
-					}
-				}
-			}(service)
+			go processBackgroundJob(ctx, interval, backgroundProcessor, service)
 		}
 	}()
 
@@ -326,4 +303,35 @@ func zeroLogConfiguration(logFile *os.File) context.Context {
 	// Attach the Logger to the context.Context
 	ctx = logger.WithContext(ctx)
 	return ctx
+}
+
+func processBackgroundJob(
+	ctx context.Context,
+	interval time.Duration,
+	backgroundProcessor service.BackgroundProcesseror,
+	service *model.Service,
+) {
+	log := zerolog.Ctx(ctx)
+	log.Info().
+		Str("service", service.Name).
+		Msg("New service created, starting background processing")
+
+	// Create ticker for repeating processing
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Info().Str("service", service.Name).
+				Msg("Stopping background processing due to context cancel")
+			return
+		case <-ticker.C:
+			if err := backgroundProcessor.ProcessService(ctx, service); err != nil {
+				log.Error().Err(err).
+					Str("service", service.Name).
+					Msg("Error when processing service")
+			}
+		}
+	}
 }
