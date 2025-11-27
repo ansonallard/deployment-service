@@ -137,8 +137,8 @@ components:
       type: object
       oneOf:
       - $ref: "#/components/schemas/NPMConfiguration"
+      - $ref: "#/components/schemas/OpenAPIConfiguration"
       # - $ref: "#/components/schemas/GoConfiguration"
-      # - $ref: "#/components/schemas/OpenAPIConfiguration"
       # - $ref: "#/components/schemas/NginxConfiguration"
     NPMConfiguration:
       type: object
@@ -205,6 +205,20 @@ components:
     OpenAPIConfiguration:
       type: object
       additionalProperties: false
+      required:
+      - openapi
+      properties:
+        openapi:
+          $ref: "#/components/schemas/OpenAPIConfigurationChoices"
+    OpenAPIConfigurationChoices:
+      type: object
+      additionalProperties: false
+      required:
+        - yamlFile
+      properties:
+        yamlFile:
+          type: string
+          description: Absolute path to openapi definition in yaml format
     NginxConfiguration:
       type: object
       additionalProperties: false
