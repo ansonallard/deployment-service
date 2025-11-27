@@ -21,7 +21,16 @@ type Service struct {
 }
 
 type ServiceConfiguration struct {
-	Npm *NpmConfiguration
+	Npm     *NpmConfiguration
+	OpenAPI *OpenAPIConfiguration
+}
+
+type OpenAPIConfiguration struct {
+	OpenAPI *OpenAPIServiceConfiguration
+}
+
+type OpenAPIServiceConfiguration struct {
+	YamlFile string
 }
 
 type NpmConfiguration struct {
@@ -58,17 +67,59 @@ func (s *Service) FromCreateRequest(req request.Request) error {
 
 	s.ID = utils.GenerateUlidString()
 
-	var npmConfiguration api.NPMConfiguration
-	if npmConfiguration, err = servceInputDto.Service.Configuration.AsNPMConfiguration(); err != nil {
+	serviceConfiguration, err := s.generateServiceConfiguration(servceInputDto.Service.Configuration)
+	if err != nil {
 		return err
+	}
+	s.Configuration = *serviceConfiguration
+	return nil
+}
+
+func (s *Service) generateServiceConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+	var err error
+
+	serviceConfigModel, err := s.handleNpmConfiguration(serviceConfig)
+	if err != nil {
+		if _, ok := err.(*unionMemberNotPresent); !ok {
+			return nil, err
+		}
+		// If the error type was unionMemberNotPresent, then we continue to the next option
+	}
+	if serviceConfigModel != nil {
+		return serviceConfigModel, nil
+	}
+
+	serviceConfigModel, err = s.handleOpenApiconfiugration(serviceConfig)
+	if err != nil {
+		if _, ok := err.(*unionMemberNotPresent); !ok {
+			return nil, err
+		}
+		// If the error type was unionMemberNotPresent, then we continue to the next option
+	}
+	if serviceConfigModel != nil {
+		return serviceConfigModel, nil
+	}
+
+	return nil, fmt.Errorf("invalid config provided")
+}
+
+func (s *Service) handleNpmConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+	var err error
+	var npmConfiguration api.NPMConfiguration
+
+	if npmConfiguration, err = serviceConfig.AsNPMConfiguration(); err != nil {
+		return nil, err
 	}
 
 	var npmServiceConfiguration api.NPMService
 	if npmServiceConfiguration, err = npmConfiguration.Npm.AsNPMService(); err != nil {
-		return err
+		if _, ok := err.(*json.SyntaxError); ok {
+			return nil, &unionMemberNotPresent{}
+		}
+		return nil, err
 	}
 
-	s.Configuration = ServiceConfiguration{
+	return &ServiceConfiguration{
 		Npm: &NpmConfiguration{
 			Service: &NpmServiceConfiguration{
 				ServieConfiguration{
@@ -79,8 +130,27 @@ func (s *Service) FromCreateRequest(req request.Request) error {
 				},
 			},
 		},
+	}, nil
+}
+
+func (s *Service) handleOpenApiconfiugration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+	var err error
+	var openapiConfiguration api.OpenAPIConfiguration
+
+	if openapiConfiguration, err = serviceConfig.AsOpenAPIConfiguration(); err != nil {
+		if _, ok := err.(*json.SyntaxError); ok {
+			return nil, &unionMemberNotPresent{}
+		}
+		return nil, err
 	}
-	return nil
+
+	return &ServiceConfiguration{
+		OpenAPI: &OpenAPIConfiguration{
+			OpenAPI: &OpenAPIServiceConfiguration{
+				YamlFile: openapiConfiguration.Openapi.YamlFile,
+			},
+		},
+	}, nil
 }
 
 func (s *Service) FromGetRequest(req request.Request) error {
@@ -93,17 +163,30 @@ func (s *Service) FromGetRequest(req request.Request) error {
 	return nil
 }
 
-func (s *Service) ToExternal(res *api.Service) error {
-	res.Id = s.ID
-	res.Name = s.Name
-	res.Git = api.GitConfiguration{}
-	if err := res.Git.FromGitConfigurationOptions(api.GitConfigurationOptions{
+func (s *Service) ToExternal(serviceDto *api.Service) error {
+	serviceDto.Id = s.ID
+	serviceDto.Name = s.Name
+	serviceDto.Git = api.GitConfiguration{}
+	if err := serviceDto.Git.FromGitConfigurationOptions(api.GitConfigurationOptions{
 		SshUrl:     s.GitSSHUrl,
 		BranchName: s.GitBranchName,
 	}); err != nil {
 		return err
 	}
 
+	switch {
+	case s.Configuration.Npm != nil:
+		s.toNpmExternal(serviceDto)
+	case s.Configuration.OpenAPI != nil:
+		s.toOpenApiExternal(serviceDto)
+	default:
+		return fmt.Errorf("invalid service configuration")
+	}
+
+	return nil
+}
+
+func (s *Service) toNpmExternal(serviceDto *api.Service) {
 	npmConfiguration := api.NPMConfigurationChoices{}
 	npmConfiguration.FromNPMService(api.NPMService{
 		Service: api.NPMServiceConfiguration{
@@ -113,11 +196,19 @@ func (s *Service) ToExternal(res *api.Service) error {
 			EnvVars:           s.Configuration.Npm.Service.EnvVars,
 		},
 	})
-	res.Configuration = api.ServiceConfiguration{}
-	res.Configuration.FromNPMConfiguration(api.NPMConfiguration{
+	serviceDto.Configuration = api.ServiceConfiguration{}
+	serviceDto.Configuration.FromNPMConfiguration(api.NPMConfiguration{
 		Npm: npmConfiguration,
 	})
-	return nil
+}
+
+func (s *Service) toOpenApiExternal(serviceDto *api.Service) {
+	serviceDto.Configuration = api.ServiceConfiguration{}
+	serviceDto.Configuration.FromOpenAPIConfiguration(api.OpenAPIConfiguration{
+		Openapi: api.OpenAPIConfigurationChoices{
+			YamlFile: s.Configuration.OpenAPI.OpenAPI.YamlFile,
+		},
+	})
 }
 
 func parseRequestBody[T any](requestBody io.ReadCloser) (T, error) {
