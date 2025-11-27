@@ -11,7 +11,7 @@ The deployment service must manage the CI/CD mechanism for the following service
 - npm library
 - go library
 - openapi
-  - support autogenerating a npm and go client
+  - support auto-generating a npm and go client
   - keep clients up to date with version
 
 The deployment service must manage the lifecycle of the customer's git repositories, including:
@@ -28,11 +28,11 @@ For ease of use for callers, callers can use an API Key, passed in the `x-api-ke
 
 ## Data persistence
 
-To keep dependenices mininmal, this service will not make use of a database to store data. Instead, data will be stored in files persisted in the same configurable directory provided in `.env`.
+To keep dependencies minimal, this service will not make use of a database to store data. Instead, data will be stored in files persisted in the same configurable directory provided in `.env`.
 
 ## Service Configuration
 
-Services must specify their `deployment-service` configuration via a well-known file at at the root of the repository called `ansonallard_config`. This config file will be in `json` and validated by the deployment service when pulling the repository.
+Service configuration is provided via API request input.
 
 Main configuration items include:
 
@@ -51,10 +51,31 @@ Main configuration items include:
       - `dockerComposePath`
     - `library`
   - `openapi`
+    - `clientPackages`
+      - `npm`
+      - `go`
   - `nginx`
     - `envPath`
     - `dockerfilePath`
     - `dockerComposePath`
+
+### OpenAPI workflow
+
+Callers can register openAPI specs and have the deployment service auto generate and persist client libraries for them. Here is the onboarding workflow:
+
+- Customer configures openapi spec, specifying:
+  - Git repo containing spec
+  - File path to openapi spec
+  - the name of the model
+  - Client libraries to configure and their library names (this could just be standardized across package managers)
+- Deployment service clones repo and verifies that the openapi spec file exists at the provided location
+- Updates version on model, commits, tags, and pushes changes to upstream
+- If they don't exist, service creates local git repos for each specified client library
+- Service constructs boiler plate for client libraries
+- Service copies openapi spec to client library
+- Service commits, tags, and pushes (optionally creates) client library to remote source control (could be gitea or github)
+- Service builds, packages, and persists client library to artifact store
+- Customers can consume client library from artifact registry
 
 ## API Endpoints
 
