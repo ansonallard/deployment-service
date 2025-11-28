@@ -246,7 +246,10 @@ func main() {
 			}
 		}
 
-		log.Info().Int("status", firstSuccessfulResponseCode).Interface("response", methodResult).TimeDiff("latency", time.Now().UTC(), startTime).Msg("API Response")
+		log.Info().Int("status", firstSuccessfulResponseCode).
+			Interface("response", methodResult).TimeDiff("latency", time.Now().UTC(), startTime).
+			Str("httpMethod", route.Method).Str("path", route.Path).
+			Msg("API Response")
 		c.JSON(firstSuccessfulResponseCode, methodResult)
 	})
 
