@@ -21,6 +21,7 @@ import (
 	"github.com/ansonallard/deployment-service/internal/repo"
 	irequest "github.com/ansonallard/deployment-service/internal/request"
 	"github.com/ansonallard/deployment-service/internal/service"
+	backgroundprocessor "github.com/ansonallard/deployment-service/internal/service/background_processor"
 	"github.com/ansonallard/deployment-service/internal/version"
 	"github.com/docker/docker/client"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -161,11 +162,11 @@ func main() {
 	envWriter := service.NewEnvFileWriter()
 
 	versioner := version.NewVersioner()
-	backgroundProcessor, err := service.NewBackgroundProcessor(service.BackgroundProcessorConfig{
+	backgroundProcessor, err := backgroundprocessor.NewBackgroundProcessor(backgroundprocessor.BackgroundProcessorConfig{
 		Versioner:     versioner,
 		SSHKeyPath:    env.GetSSHKeyPath(),
 		GitRepoOrigin: env.GetGitRepoOirign(),
-		CiCommitAuthor: &service.CiCommitAuthor{
+		CiCommitAuthor: &backgroundprocessor.CiCommitAuthor{
 			Name:  env.GetCICommitAuthorName(),
 			Email: env.GetCICommitAuthorEmail(),
 		},
@@ -311,7 +312,7 @@ func zeroLogConfiguration(logFile *os.File) context.Context {
 func processBackgroundJob(
 	ctx context.Context,
 	interval time.Duration,
-	backgroundProcessor service.BackgroundProcesseror,
+	backgroundProcessor backgroundprocessor.BackgroundProcesseror,
 	service *model.Service,
 ) {
 	log := zerolog.Ctx(ctx)
