@@ -1,16 +1,15 @@
-package service
+package backgroundprocessor
 
 import (
 	"context"
 	"fmt"
-	"os"
-	"path"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/ansonallard/deployment-service/internal/compose"
 	"github.com/ansonallard/deployment-service/internal/model"
 	"github.com/ansonallard/deployment-service/internal/releaser"
+	"github.com/ansonallard/deployment-service/internal/service"
 	"github.com/ansonallard/deployment-service/internal/version"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
@@ -19,7 +18,6 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/storer"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/rs/zerolog"
-	"github.com/tidwall/sjson"
 )
 
 const (
@@ -40,7 +38,7 @@ type BackgroundProcessorConfig struct {
 	CiCommitAuthor *CiCommitAuthor
 	DockerReleaser releaser.DockerReleaser
 	Compose        compose.ComposeRunner
-	EnvWriter      EnvFileWriter
+	EnvWriter      service.EnvFileWriter
 }
 
 type CiCommitAuthor struct {
@@ -94,7 +92,7 @@ type backgroundProcessor struct {
 	ciCommmitAuthor *CiCommitAuthor
 	dockerReleaser  releaser.DockerReleaser
 	compose         compose.ComposeRunner
-	envFileWriter   EnvFileWriter
+	envFileWriter   service.EnvFileWriter
 }
 
 func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *model.Service) error {
@@ -133,34 +131,9 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 		return err
 	}
 
-	if serviceConfiguration.Npm != nil {
-		log.Info().Str("service", service.Name).Str("nextVersion", nextVersion.String()).Msg("Building image")
-		if err := bp.dockerReleaser.BuildImage(
-			ctx,
-			service.Name,
-			service.GitRepoFilePath,
-			serviceConfiguration.Npm.Service.DockerfilePath,
-			nextVersion,
-		); err != nil {
-			return err
-		}
-
-		if err := bp.dockerReleaser.PushImage(ctx, service.Name, nextVersion); err != nil {
-			return err
-		}
-
-		log.Info().Str("service", service.Name).Str("nextVersion", nextVersion.String()).Msg("Writing env vars")
-		if err := bp.envFileWriter.WriteEnvFile(
-			ctx,
-			service.GitRepoFilePath,
-			service.Configuration.Npm.Service.EnvPath,
-			service.Configuration.Npm.Service.EnvVars,
-		); err != nil {
-			return err
-		}
-
-		log.Info().Str("service", service.Name).Str("nextVersion", nextVersion.String()).Msg("Starting service")
-		if _, err := bp.compose.Up(ctx, service.GitRepoFilePath, nextVersion); err != nil {
+	switch {
+	case serviceConfiguration.Npm != nil:
+		if err := bp.buildAndDeployNpmService(ctx, service, nextVersion); err != nil {
 			return err
 		}
 	}
@@ -239,33 +212,6 @@ func (bp *backgroundProcessor) shouldProcess(ctx context.Context, service *model
 	}
 
 	return !foundSemver, nil
-}
-
-func (bp *backgroundProcessor) setPackageJsonVersion(service *model.Service, version *semver.Version) error {
-	if _, err := os.Stat(service.GitRepoFilePath); err != nil {
-		return err
-	}
-
-	packageJsonFilePath := bp.getPackageJsonPath(service.GitRepoFilePath)
-
-	fileBytes, err := os.ReadFile(packageJsonFilePath)
-	if err != nil {
-		return err
-	}
-
-	packageJsonBytes, err := sjson.SetBytes(fileBytes, packageJSONVersionKey, version.String())
-	if err != nil {
-		return err
-	}
-
-	if err := os.WriteFile(packageJsonFilePath, packageJsonBytes, 0644); err != nil {
-		return nil
-	}
-	return nil
-}
-
-func (bp *backgroundProcessor) getPackageJsonPath(gitRepoFilePath string) string {
-	return path.Join(gitRepoFilePath, packageJSONFilePath)
 }
 
 func (bp *backgroundProcessor) commitChanges(repoPath string, version *semver.Version) error {
