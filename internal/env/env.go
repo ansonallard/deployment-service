@@ -1,10 +1,13 @@
 package env
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
 func GetPort() string {
@@ -15,78 +18,85 @@ func IsDevMode() bool {
 	return strings.ToLower(getOptionalEnvVar("IS_DEV", "false")) == "true"
 }
 
-func GetOpenAPIPath() string {
-	return getRequiredEnvVar("OPENAPI_PATH")
+func GetOpenAPIPath(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "OPENAPI_PATH")
 }
 
-func GetAPIKey() string {
-	return getRequiredEnvVar("API_KEY")
+func GetAPIKey(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "API_KEY")
 }
 
-func GetSerivceFilePath() string {
-	return getRequiredEnvVar("SERVICE_FILE_PATH")
+func GetSerivceFilePath(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "SERVICE_FILE_PATH")
 }
 
-func GetSSHKeyPath() string {
-	return getRequiredEnvVar("SSH_KEY_PATH")
+func GetSSHKeyPath(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "SSH_KEY_PATH")
 }
 
-func GetGitRepoOirign() string {
-	return getRequiredEnvVar("GIT_REPO_ORIGIN")
+func GetGitRepoOirign(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "GIT_REPO_ORIGIN")
 }
 
-func GetCICommitAuthorName() string {
-	return getRequiredEnvVar("CI_COMMIT_AUTHOR_NAME")
+func GetCICommitAuthorName(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "CI_COMMIT_AUTHOR_NAME")
 }
 
-func GetCICommitAuthorEmail() string {
-	return getRequiredEnvVar("CI_COMMIT_AUTHOR_EMAIL")
+func GetCICommitAuthorEmail(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "CI_COMMIT_AUTHOR_EMAIL")
 }
 
 func GetDockerHome() string {
 	return getOptionalEnvVarDefault("DOCKER_HOME")
 }
 
-func GetBackgroundProcessingInterval() (time.Duration, error) {
-	return time.ParseDuration(getRequiredEnvVar("BACKGROUND_PROCESSING_INTERVAL"))
+func GetBackgroundProcessingInterval(ctx context.Context) (time.Duration, error) {
+	return time.ParseDuration(getRequiredEnvVar(ctx, "BACKGROUND_PROCESSING_INTERVAL"))
 }
 
-func GetArtifactPrefix() string {
-	return getRequiredEnvVar("ARTIFACT_PREFIX")
+func GetArtifactPrefix(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "ARTIFACT_PREFIX")
 }
 
-func GetDockerServer() string {
-	return getRequiredEnvVar("DOCKER_SERVER")
+func GetDockerServer(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "DOCKER_SERVER")
 }
 
-func GetDockerUserName() string {
-	return getRequiredEnvVar("DOCKER_USERNAME")
+func GetDockerUserName(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "DOCKER_USERNAME")
 }
 
-func GetDockerPAT() string {
-	return getRequiredEnvVar("DOCKER_PAT")
+func GetDockerPAT(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "DOCKER_PAT")
 }
 
-func GetLoggingDir() string {
-	return getRequiredEnvVar("LOGGING_DIR")
+func GetLoggingDir(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "LOGGING_DIR")
 }
 
-func GetArtifactRegistryURL() string {
-	return getRequiredEnvVar("ARTIFACT_REGISTRY_URL")
+func GetArtifactRegistryURL(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "ARTIFACT_REGISTRY_URL")
 }
 
-func GetNPMPackageScope() string {
-	return getRequiredEnvVar("NPM_PACKAGE_SCOPE")
+func GetNPMPackageScope(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "NPM_PACKAGE_SCOPE")
 }
 
-func GetNPMRCPath() string {
-	return getRequiredEnvVar("NPMRC_PATH")
+func GetNPMRCPath(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "NPMRC_PATH")
 }
 
-func getRequiredEnvVar(incomingEnvVar string) string {
+func getRequiredEnvVar(ctx context.Context, incomingEnvVar string) string {
+	log := zerolog.Ctx(ctx)
 	envVar := os.Getenv(incomingEnvVar)
 	if envVar == "" {
-		panic(fmt.Sprintf("Env var %s required by not set", incomingEnvVar))
+		errMsg := fmt.Sprintf("Env var %s required by not set", incomingEnvVar)
+		switch {
+		case log == nil:
+			panic(errMsg)
+		default:
+			log.Fatal().Msg(errMsg)
+		}
 	}
 	return envVar
 }

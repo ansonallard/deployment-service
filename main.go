@@ -52,7 +52,11 @@ func main() {
 		var err error
 		// Open or create the log file
 		logFile, err = os.OpenFile(
-			path.Join(env.GetLoggingDir(), defaultLogFileName),
+			// Note: Chicken and egg problem - zerolog isn't initialized yet,
+			// but we need to pass in ctx to report a log.Fatal() if the
+			// required env var isn't present.
+			// This will panic instead of log.Fatal() if `LOGGING_DIR` isn't set.
+			path.Join(env.GetLoggingDir(context.Background()), defaultLogFileName),
 			os.O_APPEND|os.O_CREATE|os.O_WRONLY,
 			0644,
 		)
@@ -68,12 +72,12 @@ func main() {
 	log.Info().Msg("Loaded .env file")
 
 	loader := openapi3.NewLoader()
-	openAPISpec, err := loader.LoadFromFile(env.GetOpenAPIPath())
+	openAPISpec, err := loader.LoadFromFile(env.GetOpenAPIPath(ctx))
 	if err != nil {
 		log.Fatal().Err(err).Msg("Error loading OpenAPI spec")
 	}
 
-	log.Info().Str("OpenAPIPath", env.GetOpenAPIPath()).Msg("Loaded OpenAPI spec")
+	log.Info().Str("OpenAPIPath", env.GetOpenAPIPath(ctx)).Msg("Loaded OpenAPI spec")
 
 	// Validate the OpenAPI spec itself
 	err = openAPISpec.Validate(ctx)
@@ -81,7 +85,7 @@ func main() {
 		log.Fatal().Err(err).Msg("Error validating swagger spec")
 	}
 
-	log.Info().Str("OpenAPIPath", env.GetOpenAPIPath()).Msg("Validated OpenAPISpec")
+	log.Info().Str("OpenAPIPath", env.GetOpenAPIPath(ctx)).Msg("Validated OpenAPISpec")
 
 	// Create router from OpenAPI spec
 	router, err := gorillamux.NewRouter(openAPISpec)
@@ -89,7 +93,7 @@ func main() {
 		log.Fatal().Err(err).Msg("Error creating router")
 	}
 
-	authZMiddleware := authz.NewAuthZ(env.GetAPIKey())
+	authZMiddleware := authz.NewAuthZ(env.GetAPIKey(ctx))
 
 	// Create Gin router
 	ginMode := gin.DebugMode
@@ -102,10 +106,10 @@ func main() {
 	ginRouter.Use(openapi.ValidationMiddleware(router, authZMiddleware.AuthorizeCaller))
 
 	deploymentServiceRepo, err := repo.NewDeploymentService(repo.DeploymentServieConfig{
-		ServiceFilPath: env.GetSerivceFilePath(),
-		SSHKeyPath:     env.GetSSHKeyPath(),
+		ServiceFilPath: env.GetSerivceFilePath(ctx),
+		SSHKeyPath:     env.GetSSHKeyPath(ctx),
 		GitClient:      repo.NewGitClient(),
-		GitRepoOrigin:  env.GetGitRepoOirign(),
+		GitRepoOrigin:  env.GetGitRepoOirign(ctx),
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to instantiate deployment service")
@@ -146,11 +150,11 @@ func main() {
 
 	dockerReleaser, err := releaser.NewDockerReleaser(releaser.DockerReleaserConfig{
 		DockerClient:   dockerClient,
-		ArtifactPrefix: env.GetArtifactPrefix(),
+		ArtifactPrefix: env.GetArtifactPrefix(ctx),
 		RegistryAuth: &releaser.DockerAuth{
-			Username:            env.GetDockerUserName(),
-			PersonalAccessToken: env.GetDockerPAT(),
-			ServerAddress:       env.GetDockerServer(),
+			Username:            env.GetDockerUserName(ctx),
+			PersonalAccessToken: env.GetDockerPAT(ctx),
+			ServerAddress:       env.GetDockerServer(ctx),
 		},
 	})
 	if err != nil {
@@ -175,9 +179,9 @@ func main() {
 	openAPIProcessor, err := openapiBp.NewOpenAPIProcessor(openapiBp.OpenAPIProcessorConfig{
 		DockerReleaser: dockerReleaser,
 		TypescriptClientConfig: &openapiBp.TypescriptClientConfig{
-			NpmrcPath:    env.GetNPMRCPath(),
-			PackageScope: env.GetNPMPackageScope(),
-			RegistryURL:  env.GetArtifactRegistryURL(),
+			NpmrcPath:    env.GetNPMRCPath(ctx),
+			PackageScope: env.GetNPMPackageScope(ctx),
+			RegistryURL:  env.GetArtifactRegistryURL(ctx),
 		},
 	})
 	if err != nil {
@@ -186,11 +190,11 @@ func main() {
 
 	backgroundProcessor, err := backgroundprocessor.NewBackgroundProcessor(backgroundprocessor.BackgroundProcessorConfig{
 		Versioner:     versioner,
-		SSHKeyPath:    env.GetSSHKeyPath(),
-		GitRepoOrigin: env.GetGitRepoOirign(),
+		SSHKeyPath:    env.GetSSHKeyPath(ctx),
+		GitRepoOrigin: env.GetGitRepoOirign(ctx),
 		CiCommitAuthor: &backgroundprocessor.CiCommitAuthor{
-			Name:  env.GetCICommitAuthorName(),
-			Email: env.GetCICommitAuthorEmail(),
+			Name:  env.GetCICommitAuthorName(ctx),
+			Email: env.GetCICommitAuthorEmail(ctx),
 		},
 		NpmServiceProcessor: npmServiceProcessor,
 		OpenAPIProcessor:    openAPIProcessor,
@@ -204,7 +208,7 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to ValidateStructAndOpenAPI")
 	}
 
-	interval, err := env.GetBackgroundProcessingInterval()
+	interval, err := env.GetBackgroundProcessingInterval(ctx)
 	if err != nil {
 	}
 
