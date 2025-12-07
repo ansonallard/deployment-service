@@ -55,20 +55,6 @@ func (v *Versioner) CalculateNextVersion(ctx context.Context, repoPath string) (
 		summary := c.Message
 		log.Info().Interface("stderr", os.Stderr).Interface("SHA", c.Hash.String()).Interface("SUMMARY", strings.Split(summary, "\n")[0]).Msg("current commit")
 
-		matches := commitRegex.FindStringSubmatch(summary)
-		if matches == nil {
-			return fmt.Errorf("commit %s is not a conventional commit", c.Hash.String())
-		}
-
-		switch {
-		case matches[2] == "!":
-			isMajor = true
-		case matches[1] == "feat":
-			isMinor = true
-		default:
-			isPatch = true
-		}
-
 		// Check if this commit has a tag
 		tags, _ := repo.Tags()
 		_ = tags.ForEach(func(ref *plumbing.Reference) error {
@@ -86,6 +72,21 @@ func (v *Versioner) CalculateNextVersion(ctx context.Context, repoPath string) (
 		if latestTag != "" {
 			return storer.ErrStop
 		}
+
+		matches := commitRegex.FindStringSubmatch(summary)
+		if matches == nil {
+			return fmt.Errorf("commit %s is not a conventional commit", c.Hash.String())
+		}
+
+		switch {
+		case matches[2] == "!":
+			isMajor = true
+		case matches[1] == "feat":
+			isMinor = true
+		default:
+			isPatch = true
+		}
+
 		return nil
 	})
 	if err != nil && err != storer.ErrStop {
