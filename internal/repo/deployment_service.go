@@ -60,7 +60,7 @@ type deploymentService struct {
 }
 
 func (ds *deploymentService) Create(ctx context.Context, service *model.Service) error {
-	servicePath := ds.getServiceFilePath(service.Name)
+	servicePath := ds.getServiceFilePath(service.Name.Name)
 
 	if err := os.MkdirAll(servicePath, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
@@ -71,11 +71,11 @@ func (ds *deploymentService) Create(ctx context.Context, service *model.Service)
 		return fmt.Errorf("failed to marshal service: %w", err)
 	}
 
-	if err := os.WriteFile(ds.getServiceConfigurationFilePath(service.Name), fileBytes, 0644); err != nil {
+	if err := os.WriteFile(ds.getServiceConfigurationFilePath(service.Name.Name), fileBytes, 0644); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
-	gitRepoPath := ds.getGitRepoFilePath(service.Name)
+	gitRepoPath := ds.getGitRepoFilePath(service.Name.Name)
 	if err := os.MkdirAll(gitRepoPath, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}

@@ -12,12 +12,16 @@ import (
 )
 
 type Service struct {
+	Name
 	ID              string `json:"id"`
-	Name            string `json:"name"`
 	GitSSHUrl       string `json:"git_ssh_url"`
 	GitBranchName   string `json:"branch_name"`
 	GitRepoFilePath string
 	Configuration   ServiceConfiguration `json:"configuration"`
+}
+
+type Name struct {
+	Name string `json:"name"`
 }
 
 type ServiceConfiguration struct {
@@ -30,7 +34,12 @@ type OpenAPIConfiguration struct {
 }
 
 type OpenAPIServiceConfiguration struct {
-	YamlFile string
+	YamlFile         string
+	TypescriptClient *TypescriptClient
+}
+
+type TypescriptClient struct {
+	Name
 }
 
 type NpmConfiguration struct {
@@ -55,7 +64,7 @@ func (s *Service) FromCreateRequest(req request.Request) error {
 	if err != nil {
 		return err
 	}
-	s.Name = servceInputDto.Service.Name
+	s.Name.Name = servceInputDto.Service.Name
 
 	var gitConfigurationOptions api.GitConfigurationOptions
 	if gitConfigurationOptions, err = servceInputDto.Service.Git.AsGitConfigurationOptions(); err != nil {
@@ -135,22 +144,31 @@ func (s *Service) handleNpmConfiguration(serviceConfig api.ServiceConfiguration)
 
 func (s *Service) handleOpenApiconfiugration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
 	var err error
-	var openapiConfiguration api.OpenAPIConfiguration
+	var openapiConfigurationDto api.OpenAPIConfiguration
 
-	if openapiConfiguration, err = serviceConfig.AsOpenAPIConfiguration(); err != nil {
+	if openapiConfigurationDto, err = serviceConfig.AsOpenAPIConfiguration(); err != nil {
 		if _, ok := err.(*json.SyntaxError); ok {
 			return nil, &unionMemberNotPresent{}
 		}
 		return nil, err
 	}
 
-	return &ServiceConfiguration{
+	internalServiceConfig := ServiceConfiguration{
 		OpenAPI: &OpenAPIConfiguration{
 			OpenAPI: &OpenAPIServiceConfiguration{
-				YamlFile: openapiConfiguration.Openapi.YamlFile,
+				YamlFile: openapiConfigurationDto.Openapi.YamlFile,
 			},
 		},
-	}, nil
+	}
+
+	if openapiConfigurationDto.Openapi.TypescriptClient != nil {
+		internalServiceConfig.OpenAPI.OpenAPI.TypescriptClient = &TypescriptClient{
+			Name: Name{
+				Name: openapiConfigurationDto.Openapi.TypescriptClient.Name,
+			},
+		}
+	}
+	return &internalServiceConfig, nil
 }
 
 func (s *Service) FromGetRequest(req request.Request) error {
@@ -159,13 +177,13 @@ func (s *Service) FromGetRequest(req request.Request) error {
 	if !ok {
 		return fmt.Errorf("name not present in path")
 	}
-	s.Name = name
+	s.Name.Name = name
 	return nil
 }
 
 func (s *Service) ToExternal(serviceDto *api.Service) error {
 	serviceDto.Id = s.ID
-	serviceDto.Name = s.Name
+	serviceDto.Name = s.Name.Name
 	serviceDto.Git = api.GitConfiguration{}
 	if err := serviceDto.Git.FromGitConfigurationOptions(api.GitConfigurationOptions{
 		SshUrl:     s.GitSSHUrl,
@@ -204,10 +222,16 @@ func (s *Service) toNpmExternal(serviceDto *api.Service) {
 
 func (s *Service) toOpenApiExternal(serviceDto *api.Service) {
 	serviceDto.Configuration = api.ServiceConfiguration{}
+	openapiConfig := api.OpenAPIConfigurationChoices{
+		YamlFile: s.Configuration.OpenAPI.OpenAPI.YamlFile,
+	}
+	if s.Configuration.OpenAPI.OpenAPI.TypescriptClient != nil {
+		openapiConfig.TypescriptClient = &api.OpenAPITypescriptClientConfig{
+			Name: s.Configuration.OpenAPI.OpenAPI.TypescriptClient.Name.Name,
+		}
+	}
 	serviceDto.Configuration.FromOpenAPIConfiguration(api.OpenAPIConfiguration{
-		Openapi: api.OpenAPIConfigurationChoices{
-			YamlFile: s.Configuration.OpenAPI.OpenAPI.YamlFile,
-		},
+		Openapi: openapiConfig,
 	})
 }
 

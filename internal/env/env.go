@@ -71,6 +71,18 @@ func GetLoggingDir() string {
 	return getRequiredEnvVar("LOGGING_DIR")
 }
 
+func GetArtifactRegistryURL() string {
+	return getRequiredEnvVar("ARTIFACT_REGISTRY_URL")
+}
+
+func GetNPMPackageScope() string {
+	return getRequiredEnvVar("NPM_PACKAGE_SCOPE")
+}
+
+func GetNPMRCPath() string {
+	return getRequiredEnvVar("NPMRC_PATH")
+}
+
 func getRequiredEnvVar(incomingEnvVar string) string {
 	envVar := os.Getenv(incomingEnvVar)
 	if envVar == "" {

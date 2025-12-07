@@ -10,6 +10,9 @@ import (
 	"reflect"
 	"time"
 
+	backgroundprocessor "github.com/ansonallard/deployment-service/internal/background_processor"
+	"github.com/ansonallard/deployment-service/internal/background_processor/npm"
+	openapiBp "github.com/ansonallard/deployment-service/internal/background_processor/openapi"
 	"github.com/ansonallard/deployment-service/internal/compose"
 	"github.com/ansonallard/deployment-service/internal/controllers"
 	"github.com/ansonallard/deployment-service/internal/env"
@@ -21,7 +24,6 @@ import (
 	"github.com/ansonallard/deployment-service/internal/repo"
 	irequest "github.com/ansonallard/deployment-service/internal/request"
 	"github.com/ansonallard/deployment-service/internal/service"
-	backgroundprocessor "github.com/ansonallard/deployment-service/internal/service/background_processor"
 	"github.com/ansonallard/deployment-service/internal/version"
 	"github.com/docker/docker/client"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -162,6 +164,26 @@ func main() {
 	envWriter := service.NewEnvFileWriter()
 
 	versioner := version.NewVersioner()
+	npmServiceProcessor, err := npm.NewNPMServiceProcessor(npm.NPMServiceProcessorConfig{
+		DockerReleaser: dockerReleaser,
+		Compose:        dockerCompose,
+		EnvWriter:      envWriter,
+	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to instantiate npm service processor")
+	}
+	openAPIProcessor, err := openapiBp.NewOpenAPIProcessor(openapiBp.OpenAPIProcessorConfig{
+		DockerReleaser: dockerReleaser,
+		TypescriptClientConfig: &openapiBp.TypescriptClientConfig{
+			NpmrcPath:    env.GetNPMRCPath(),
+			PackageScope: env.GetNPMPackageScope(),
+			RegistryURL:  env.GetArtifactRegistryURL(),
+		},
+	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to instantiate openapi processor")
+	}
+
 	backgroundProcessor, err := backgroundprocessor.NewBackgroundProcessor(backgroundprocessor.BackgroundProcessorConfig{
 		Versioner:     versioner,
 		SSHKeyPath:    env.GetSSHKeyPath(),
@@ -170,9 +192,8 @@ func main() {
 			Name:  env.GetCICommitAuthorName(),
 			Email: env.GetCICommitAuthorEmail(),
 		},
-		DockerReleaser: dockerReleaser,
-		Compose:        dockerCompose,
-		EnvWriter:      envWriter,
+		NpmServiceProcessor: npmServiceProcessor,
+		OpenAPIProcessor:    openAPIProcessor,
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to instantiate background processor")
@@ -317,7 +338,7 @@ func processBackgroundJob(
 ) {
 	log := zerolog.Ctx(ctx)
 	log.Info().
-		Str("service", service.Name).
+		Str("service", service.Name.Name).
 		Msg("New service created, starting background processing")
 
 	// Create ticker for repeating processing
@@ -327,13 +348,13 @@ func processBackgroundJob(
 	for {
 		select {
 		case <-ctx.Done():
-			log.Info().Str("service", service.Name).
+			log.Info().Str("service", service.Name.Name).
 				Msg("Stopping background processing due to context cancel")
 			return
 		case <-ticker.C:
 			if err := backgroundProcessor.ProcessService(ctx, service); err != nil {
 				log.Error().Err(err).
-					Str("service", service.Name).
+					Str("service", service.Name.Name).
 					Msg("Error when processing service")
 			}
 		}

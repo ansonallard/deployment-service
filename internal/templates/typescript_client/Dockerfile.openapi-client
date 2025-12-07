@@ -1,0 +1,22 @@
+# syntax=docker/dockerfile:1
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy configuration files and .npmrc
+# Note: Go Docker SDK doesn't support build secrets
+# Image is built on sercure server and then deleted.
+# I chose to use the Docker SDK instead of wrapping the docker
+# command line with build secrets.
+COPY package.json openapi-ts.config.ts .prettierrc.json .npmrc ./
+COPY *.yaml ./
+
+# Install dependencies with latest versions
+RUN npm install --save-dev @hey-api/openapi-ts @hey-api/client-axios prettier
+
+# Generate the OpenAPI client
+RUN npm run generate-openapi-client
+
+# Publish to npm registry
+# Note: `npm publish` does `npm pack` first then publishes
+RUN npm publish

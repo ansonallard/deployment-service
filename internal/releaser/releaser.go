@@ -21,8 +21,11 @@ import (
 )
 
 type DockerReleaser interface {
-	BuildImage(ctx context.Context, serviceName, repositoryPath, dockerfilePath string, version *semver.Version) error
+	BuildImage(ctx context.Context, repositoryPath, dockerfilePath string, tags []string) error
 	PushImage(ctx context.Context, serviceName string, version *semver.Version) error
+	RemoveImage(ctx context.Context, tag string) error
+	FullyQualifiedImageTag(imageName string, version *semver.Version) string
+	CreateArtifactTag(serviceName string, version *semver.Version) string
 }
 
 type DockerAuth struct {
@@ -43,7 +46,7 @@ type DockerReleaserConfig struct {
 	RegistryAuth   *DockerAuth
 }
 
-func NewDockerReleaser(config DockerReleaserConfig) (*dockerReleaser, error) {
+func NewDockerReleaser(config DockerReleaserConfig) (DockerReleaser, error) {
 	if config.DockerClient == nil {
 		return nil, fmt.Errorf("dockerClient not provided")
 	}
@@ -61,19 +64,17 @@ func NewDockerReleaser(config DockerReleaserConfig) (*dockerReleaser, error) {
 }
 
 // BuildImage builds the Docker image using the official Docker SDK.
-func (r *dockerReleaser) BuildImage(ctx context.Context, imageName, repositoryPath, dockerfilePath string, version *semver.Version) error {
+func (r *dockerReleaser) BuildImage(ctx context.Context, repositoryPath, dockerfilePath string, tags []string) error {
 	// Create build context tarball
-	buildCtx, err := createTar(repositoryPath)
+	buildCtx, err := CreateTar(repositoryPath)
 	if err != nil {
 		return fmt.Errorf("failed to create build context: %w", err)
 	}
 	defer buildCtx.Close()
 
-	localTag := fmt.Sprintf("%s:%s", imageName, version.String())
-
 	// Run docker build
 	resp, err := r.dockerclient.ImageBuild(ctx, buildCtx, build.ImageBuildOptions{
-		Tags:        []string{localTag, r.createArtifactTag(imageName, version)},
+		Tags:        tags,
 		Dockerfile:  dockerfilePath,
 		Remove:      true,
 		ForceRemove: true,
@@ -92,8 +93,8 @@ func (r *dockerReleaser) BuildImage(ctx context.Context, imageName, repositoryPa
 	return nil
 }
 
-// createTar creates a tar stream of the given directory (for Docker build context).
-func createTar(dir string) (io.ReadCloser, error) {
+// CreateTar creates a tar stream of the given directory (exported for use in other packages)
+func CreateTar(dir string) (io.ReadCloser, error) {
 	buf := new(bytes.Buffer)
 	tw := tar.NewWriter(buf)
 
@@ -145,9 +146,7 @@ func createTar(dir string) (io.ReadCloser, error) {
 func (r *dockerReleaser) PushImage(ctx context.Context, serviceName string, version *semver.Version) error {
 	log := zerolog.Ctx(ctx)
 
-	// Note: This code works, but it is failing to push the image to the artifact registry. Need to debug it's configuration (nginx)
-
-	remoteImageTag := r.createArtifactTag(serviceName, version)
+	remoteImageTag := r.CreateArtifactTag(serviceName, version)
 	log.Info().
 		Str("service", serviceName).
 		Str("nextVersion", version.String()).
@@ -197,6 +196,33 @@ func (r *dockerReleaser) PushImage(ctx context.Context, serviceName string, vers
 	return nil
 }
 
-func (r *dockerReleaser) createArtifactTag(serviceName string, version *semver.Version) string {
-	return fmt.Sprintf("%s/%s:%s", r.artifactPrefix, serviceName, version.String())
+// RemoveImage removes a Docker image from the local system
+func (r *dockerReleaser) RemoveImage(ctx context.Context, tag string) error {
+	log := zerolog.Ctx(ctx)
+
+	log.Info().
+		Str("tag", tag).
+		Msg("Removing Docker image")
+
+	_, err := r.dockerclient.ImageRemove(ctx, tag, image.RemoveOptions{
+		Force:         true,
+		PruneChildren: true,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to remove image: %w", err)
+	}
+
+	log.Info().
+		Str("tag", tag).
+		Msg("Docker image removed successfully")
+
+	return nil
+}
+
+func (r *dockerReleaser) FullyQualifiedImageTag(imageName string, version *semver.Version) string {
+	return fmt.Sprintf("%s:%s", imageName, version.String())
+}
+
+func (r *dockerReleaser) CreateArtifactTag(serviceName string, version *semver.Version) string {
+	return fmt.Sprintf("%s/%s", r.artifactPrefix, r.FullyQualifiedImageTag(serviceName, version))
 }

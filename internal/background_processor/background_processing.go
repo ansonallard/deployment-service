@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/ansonallard/deployment-service/internal/compose"
+	"github.com/ansonallard/deployment-service/internal/background_processor/npm"
+	"github.com/ansonallard/deployment-service/internal/background_processor/openapi"
 	"github.com/ansonallard/deployment-service/internal/model"
-	"github.com/ansonallard/deployment-service/internal/releaser"
-	"github.com/ansonallard/deployment-service/internal/service"
 	"github.com/ansonallard/deployment-service/internal/version"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
@@ -21,10 +20,8 @@ import (
 )
 
 const (
-	packageJSONFilePath   = "package.json"
-	packageJSONVersionKey = "version"
-	ciCommitMsgFormat     = "ci: Release version %s"
-	defaultOrigin         = "origin"
+	ciCommitMsgFormat = "ci: Release version %s"
+	defaultOrigin     = "origin"
 )
 
 type BackgroundProcesseror interface {
@@ -32,13 +29,12 @@ type BackgroundProcesseror interface {
 }
 
 type BackgroundProcessorConfig struct {
-	Versioner      *version.Versioner
-	SSHKeyPath     string
-	GitRepoOrigin  string
-	CiCommitAuthor *CiCommitAuthor
-	DockerReleaser releaser.DockerReleaser
-	Compose        compose.ComposeRunner
-	EnvWriter      service.EnvFileWriter
+	Versioner           *version.Versioner
+	SSHKeyPath          string
+	GitRepoOrigin       string
+	CiCommitAuthor      *CiCommitAuthor
+	NpmServiceProcessor npm.NPMServiceProcessor
+	OpenAPIProcessor    openapi.OpenAPIProcessor
 }
 
 type CiCommitAuthor struct {
@@ -63,36 +59,31 @@ func NewBackgroundProcessor(config BackgroundProcessorConfig) (BackgroundProcess
 	if config.CiCommitAuthor == nil {
 		return nil, fmt.Errorf("ciCommitAuthor not provided")
 	}
-	if config.DockerReleaser == nil {
-		return nil, fmt.Errorf("dockerReleaser not provided")
+	if config.NpmServiceProcessor == nil {
+		return nil, fmt.Errorf("npmServiceProcessor not provided")
 	}
-	if config.Compose == nil {
-		return nil, fmt.Errorf("compose not provided")
-	}
-	if config.EnvWriter == nil {
-		return nil, fmt.Errorf("envwriter not provided")
+	if config.OpenAPIProcessor == nil {
+		return nil, fmt.Errorf("openAPIProcessor not provided")
 	}
 
 	return &backgroundProcessor{
-			versioner:       *config.Versioner,
-			gitRepoOrigin:   config.GitRepoOrigin,
-			sshAuth:         sshAuth,
-			ciCommmitAuthor: config.CiCommitAuthor,
-			dockerReleaser:  config.DockerReleaser,
-			compose:         config.Compose,
-			envFileWriter:   config.EnvWriter,
+			versioner:           *config.Versioner,
+			gitRepoOrigin:       config.GitRepoOrigin,
+			sshAuth:             sshAuth,
+			ciCommmitAuthor:     config.CiCommitAuthor,
+			npmServiceProcessor: config.NpmServiceProcessor,
+			openAPIProcessor:    config.OpenAPIProcessor,
 		},
 		nil
 }
 
 type backgroundProcessor struct {
-	versioner       version.Versioner
-	sshAuth         *ssh.PublicKeys
-	gitRepoOrigin   string
-	ciCommmitAuthor *CiCommitAuthor
-	dockerReleaser  releaser.DockerReleaser
-	compose         compose.ComposeRunner
-	envFileWriter   service.EnvFileWriter
+	versioner           version.Versioner
+	sshAuth             *ssh.PublicKeys
+	gitRepoOrigin       string
+	ciCommmitAuthor     *CiCommitAuthor
+	npmServiceProcessor npm.NPMServiceProcessor
+	openAPIProcessor    openapi.OpenAPIProcessor
 }
 
 func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *model.Service) error {
@@ -115,26 +106,40 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 	serviceConfiguration := service.Configuration
 	switch {
 	case serviceConfiguration.Npm != nil:
-		log.Info().Str("service", service.Name).Str("service", service.Name).Str("nextVersion", nextVersion.String()).Msg("Npm Service")
-		if err := bp.setPackageJsonVersion(service, nextVersion); err != nil {
+		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Npm Service")
+		if err := bp.npmServiceProcessor.SetPackageJsonVersion(service, nextVersion); err != nil {
+			return err
+		}
+	case serviceConfiguration.OpenAPI != nil:
+		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("OpenAPI Service")
+		if err := bp.openAPIProcessor.SetOpenApiYamlVersion(service, nextVersion); err != nil {
 			return err
 		}
 	}
 
-	log.Info().Str("service", service.Name).Str("nextVersion", nextVersion.String()).Msg("Commiting changes")
+	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Commiting changes")
 	if err := bp.commitChanges(service.GitRepoFilePath, nextVersion); err != nil {
 		return err
 	}
 
-	log.Info().Str("service", service.Name).Str("nextVersion", nextVersion.String()).Msg("Tagging and pushing changes")
+	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Tagging and pushing changes")
 	if err := bp.tagAndPushChanges(service.GitRepoFilePath, *nextVersion); err != nil {
 		return err
 	}
 
 	switch {
 	case serviceConfiguration.Npm != nil:
-		if err := bp.buildAndDeployNpmService(ctx, service, nextVersion); err != nil {
+		if err := bp.npmServiceProcessor.BuildAndDeployNpmService(ctx, service, nextVersion); err != nil {
 			return err
+		}
+	case serviceConfiguration.OpenAPI != nil:
+		log.Info().
+			Str("service", service.Name.Name).
+			Str("nextVersion", nextVersion.String()).
+			Msg("Building and publishing OpenAPI npm client")
+
+		if err := bp.openAPIProcessor.BuildAndDeployOpenAPIClient(ctx, service, nextVersion); err != nil {
+			return fmt.Errorf("failed to build and deploy OpenAPI npm client: %w", err)
 		}
 	}
 
