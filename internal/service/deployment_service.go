@@ -40,7 +40,7 @@ func NewDeploymentService(config DeploymentServiceConfig) (DeploymentService, er
 }
 
 func (ds *deploymentService) Create(ctx context.Context, service *model.Service) error {
-	existingService, err := ds.Get(ctx, service.Name)
+	existingService, err := ds.Get(ctx, service.Name.Name)
 	if err != nil {
 		switch err.(type) {
 		case *ierr.NotFoundError:

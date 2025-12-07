@@ -219,6 +219,16 @@ components:
         yamlFile:
           type: string
           description: Absolute path to openapi definition in yaml format
+        typescriptClient:
+          $ref: "#/components/schemas/OpenAPITypescriptClientConfig"
+    OpenAPITypescriptClientConfig:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of typescript client. Service defined scope will be added.
+      required:
+      - name
     NginxConfiguration:
       type: object
       additionalProperties: false

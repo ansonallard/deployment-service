@@ -1,0 +1,14 @@
+import { defaultPlugins } from "@hey-api/openapi-ts";
+
+export default {
+  input: "{{.OpenAPIFileName}}",
+  output: "{{.OutputPath}}",
+  plugins: [
+    ...defaultPlugins,
+    "@hey-api/client-axios",
+    {
+      enums: "typescript",
+      name: "@hey-api/typescript",
+    },
+  ],
+};

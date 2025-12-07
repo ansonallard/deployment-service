@@ -1,0 +1,16 @@
+{
+  "name": "{{.PackageName}}",
+  "version": "{{.Version}}",
+  "description": "{{.Description}}",
+  "scripts": {
+    "format-fix": "prettier . --write",
+    "generate-openapi-client": "openapi-ts && npm run format-fix"
+  },
+  "keywords": [
+    "openapi",
+    "typescript",
+    "sdk",
+    "{{.ServiceName}}"
+  ],
+  "author": "Anson Allard"
+}

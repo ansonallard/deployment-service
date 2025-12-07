@@ -58,7 +58,7 @@ func (ds *deploymentServiceController) GetService(ctx context.Context, request r
 		return nil, err
 	}
 
-	service, err := ds.service.Get(ctx, service.Name)
+	service, err := ds.service.Get(ctx, service.Name.Name)
 	if err != nil {
 		return nil, err
 	}
