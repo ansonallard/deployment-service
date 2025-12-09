@@ -25,11 +25,11 @@ import (
 	irequest "github.com/ansonallard/deployment-service/internal/request"
 	"github.com/ansonallard/deployment-service/internal/service"
 	"github.com/ansonallard/deployment-service/internal/version"
-	"github.com/docker/docker/client"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/moby/moby/client"
 	"github.com/rs/zerolog"
 )
 

@@ -15,10 +15,8 @@ import (
 	"path/filepath"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/docker/docker/api/types/build"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/registry"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/api/types/registry"
+	"github.com/moby/moby/client"
 	"github.com/rs/zerolog"
 )
 
@@ -83,7 +81,7 @@ func (r *dockerReleaser) BuildImage(ctx context.Context, repositoryPath, dockerf
 	defer buildCtx.Close()
 
 	// Run docker build
-	resp, err := r.dockerclient.ImageBuild(ctx, buildCtx, build.ImageBuildOptions{
+	resp, err := r.dockerclient.ImageBuild(ctx, buildCtx, client.ImageBuildOptions{
 		Tags:        tags,
 		Dockerfile:  dockerfilePath,
 		Remove:      true,
@@ -259,7 +257,7 @@ func (r *dockerReleaser) PushImage(ctx context.Context, serviceName string, vers
 	}
 
 	// Push the image
-	response, err := r.dockerclient.ImagePush(ctx, remoteImageTag, image.PushOptions{
+	response, err := r.dockerclient.ImagePush(ctx, remoteImageTag, client.ImagePushOptions{
 		RegistryAuth: base64.StdEncoding.EncodeToString(authJSON),
 	})
 	if err != nil {
@@ -298,7 +296,7 @@ func (r *dockerReleaser) RemoveImage(ctx context.Context, tag string) error {
 		Str("tag", tag).
 		Msg("Removing Docker image")
 
-	_, err := r.dockerclient.ImageRemove(ctx, tag, image.RemoveOptions{
+	_, err := r.dockerclient.ImageRemove(ctx, tag, client.ImageRemoveOptions{
 		Force:         true,
 		PruneChildren: true,
 	})
