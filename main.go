@@ -156,6 +156,7 @@ func main() {
 			PersonalAccessToken: env.GetDockerPAT(ctx),
 			ServerAddress:       env.GetDockerServer(ctx),
 		},
+		PathToDockerCLI: env.GetPathToDockerCLI(),
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to instantiate docker releaser")

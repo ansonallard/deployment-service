@@ -86,6 +86,10 @@ func GetNPMRCPath(ctx context.Context) string {
 	return getRequiredEnvVar(ctx, "NPMRC_PATH")
 }
 
+func GetPathToDockerCLI() string {
+	return getOptionalEnvVar("PATH_TO_DOCKER_CLI", "/usr/bin/docker")
+}
+
 func getRequiredEnvVar(ctx context.Context, incomingEnvVar string) string {
 	log := zerolog.Ctx(ctx)
 	envVar := os.Getenv(incomingEnvVar)

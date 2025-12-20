@@ -19,6 +19,10 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const (
+	npmrcSecretKey = "npmrc"
+)
+
 type OpenAPIProcessor interface {
 	SetOpenApiYamlVersion(service *model.Service, version *semver.Version) error
 	BuildAndDeployOpenAPIClient(
@@ -194,11 +198,6 @@ func (op *openAPIProcessor) BuildAndDeployOpenAPIClient(
 		return fmt.Errorf("failed to copy OpenAPI spec: %w", err)
 	}
 
-	// Copy .npmrc for authentication
-	if err := op.copyNpmrc(buildDir); err != nil {
-		return fmt.Errorf("failed to copy .npmrc: %w", err)
-	}
-
 	// Build and publish using Docker
 	if err := op.buildAndPublishDockerClient(ctx, buildDir, imageName, nextVersion); err != nil {
 		return fmt.Errorf("failed to build and publish client: %w", err)
@@ -329,13 +328,6 @@ func (op *openAPIProcessor) copyOpenAPISpec(service *model.Service, buildDir str
 	return copyFile(sourcePath, destPath)
 }
 
-func (op *openAPIProcessor) copyNpmrc(buildDir string) error {
-	sourcePath := op.typescriptClientConfig.NpmrcPath
-	destPath := filepath.Join(buildDir, ".npmrc")
-
-	return copyFile(sourcePath, destPath)
-}
-
 func copyFile(src, dst string) error {
 	sourceFile, err := os.Open(src)
 	if err != nil {
@@ -362,12 +354,27 @@ func (op *openAPIProcessor) buildAndPublishDockerClient(
 	imageName string,
 	version *semver.Version,
 ) error {
-	return op.dockerReleaser.BuildImage(
+	secrets, err := op.generateDockerBuildSecrets()
+	if err != nil {
+		return err
+	}
+	return op.dockerReleaser.BuildImageWithSecrets(
 		ctx,
 		buildDir,
 		"Dockerfile",
 		[]string{op.generateOpenAPIDockerFullyQualifiedImageName(imageName, version)},
+		secrets,
 	)
+}
+
+func (op *openAPIProcessor) generateDockerBuildSecrets() (map[string][]byte, error) {
+	npmrcBytes, err := os.ReadFile(op.typescriptClientConfig.NpmrcPath)
+	if err != nil {
+		return nil, err
+	}
+	return map[string][]byte{
+		npmrcSecretKey: npmrcBytes,
+	}, nil
 }
 
 func (op *openAPIProcessor) generateOpenAPIDockerFullyQualifiedImageName(imageName string, version *semver.Version) string {

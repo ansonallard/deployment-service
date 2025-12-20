@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
 
 	"github.com/Masterminds/semver/v3"
@@ -22,6 +24,7 @@ import (
 
 type DockerReleaser interface {
 	BuildImage(ctx context.Context, repositoryPath, dockerfilePath string, tags []string) error
+	BuildImageWithSecrets(ctx context.Context, repositoryPath, dockerfilePath string, tags []string, secrets map[string][]byte) error
 	PushImage(ctx context.Context, serviceName string, version *semver.Version) error
 	RemoveImage(ctx context.Context, tag string) error
 	FullyQualifiedImageTag(imageName string, version *semver.Version) string
@@ -35,15 +38,17 @@ type DockerAuth struct {
 }
 
 type dockerReleaser struct {
-	dockerclient   *client.Client
-	artifactPrefix string
-	registryAuth   *DockerAuth
+	dockerclient    *client.Client
+	artifactPrefix  string
+	registryAuth    *DockerAuth
+	pathToDockerCLI string
 }
 
 type DockerReleaserConfig struct {
-	DockerClient   *client.Client
-	ArtifactPrefix string
-	RegistryAuth   *DockerAuth
+	DockerClient    *client.Client
+	ArtifactPrefix  string
+	RegistryAuth    *DockerAuth
+	PathToDockerCLI string
 }
 
 func NewDockerReleaser(config DockerReleaserConfig) (DockerReleaser, error) {
@@ -56,10 +61,15 @@ func NewDockerReleaser(config DockerReleaserConfig) (DockerReleaser, error) {
 	if config.RegistryAuth == nil {
 		return nil, fmt.Errorf("registryAuth not provided")
 	}
+	if config.PathToDockerCLI == "" {
+		return nil, fmt.Errorf("pathToDockerCLi not provided")
+	}
+
 	return &dockerReleaser{
-		dockerclient:   config.DockerClient,
-		artifactPrefix: config.ArtifactPrefix,
-		registryAuth:   config.RegistryAuth,
+		dockerclient:    config.DockerClient,
+		artifactPrefix:  config.ArtifactPrefix,
+		registryAuth:    config.RegistryAuth,
+		pathToDockerCLI: config.PathToDockerCLI,
 	}, nil
 }
 
@@ -89,6 +99,90 @@ func (r *dockerReleaser) BuildImage(ctx context.Context, repositoryPath, dockerf
 	if err != nil {
 		return fmt.Errorf("failed to read build output: %w", err)
 	}
+
+	return nil
+}
+
+const (
+	dockerBuildCommand = "build"
+)
+
+// The Moby SDK doesn't support builds with secrets.
+// Docker doesn't expose buildkit directly either, which means
+// we can't use that SDK. For now, use a subprocess to build an
+// image with secrets. Once this is supported in the Go SDK,
+// switch over to the SDK.
+func (r *dockerReleaser) BuildImageWithSecrets(
+	ctx context.Context,
+	repositoryPath,
+	dockerfilePath string,
+	tags []string,
+	secrets map[string][]byte,
+) error {
+	log := zerolog.Ctx(ctx)
+
+	log.Info().
+		Str("repositoryPath", repositoryPath).
+		Str("dockerfile", dockerfilePath).
+		Strs("tags", tags).
+		Int("secretCount", len(secrets)).
+		Msg("Building image with secrets using docker CLI")
+
+	// Create temporary directory for secret files with unique build ID
+	tempDir, err := os.MkdirTemp("", "docker-secrets-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Write secrets to temporary files
+	secretFiles := make(map[string]string)
+	for id, content := range secrets {
+		secretPath := filepath.Join(tempDir, id)
+		if err := os.WriteFile(secretPath, content, 0600); err != nil {
+			return fmt.Errorf("failed to write secret %s: %w", id, err)
+		}
+		secretFiles[id] = secretPath
+		log.Debug().
+			Str("secretId", id).
+			Str("path", secretPath).
+			Msg("Created temporary secret file")
+	}
+
+	// Build docker command arguments
+	args := []string{dockerBuildCommand}
+
+	// Add secret arguments
+	for id, path := range secretFiles {
+		args = append(args, "--secret", fmt.Sprintf("id=%s,src=%s", id, path))
+	}
+
+	// Add tags
+	for _, tag := range tags {
+		args = append(args, "-t", tag)
+	}
+
+	// Add dockerfile and context
+	fullyQualifiedDockerfilePath := path.Join(repositoryPath, dockerfilePath)
+	args = append(args, "-f", fullyQualifiedDockerfilePath, repositoryPath)
+
+	log.Debug().
+		Strs("args", args).
+		Msg("Executing docker build command")
+
+	// Create command
+	cmd := exec.CommandContext(ctx, r.pathToDockerCLI, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	// Execute the build
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("docker build command failed: %w", err)
+	}
+
+	log.Info().
+		Strs("tags", tags).
+		Msg("Image build with secrets completed successfully")
 
 	return nil
 }
