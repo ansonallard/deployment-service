@@ -1,0 +1,8 @@
+package: {{.PackageName}}
+generate:
+  models: true
+  client: true
+  embedded-spec: true
+output-options:
+  response-type-suffix: Resp
+output: {{.OutputPath}}/{{.PackageName}}.go
