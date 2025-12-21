@@ -36,9 +36,14 @@ type OpenAPIConfiguration struct {
 type OpenAPIServiceConfiguration struct {
 	YamlFile         string
 	TypescriptClient *TypescriptClient
+	GoClient         *GoClient
 }
 
 type TypescriptClient struct {
+	Name
+}
+
+type GoClient struct {
 	Name
 }
 

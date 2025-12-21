@@ -1,0 +1,42 @@
+FROM golang:1.24-alpine
+
+WORKDIR /build
+
+# Install dependencies
+RUN apk add --no-cache curl zip
+
+# Install oapi-codegen
+RUN go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+
+# Copy files
+COPY go.mod .
+COPY config.yaml .
+COPY *.yaml ./
+
+# Create output directory
+RUN mkdir -p lib
+
+# Generate Go client
+RUN oapi-codegen -config=config.yaml {{.OpenAPIFileName}}
+
+# Download dependencies to create go.sum
+RUN go mod download
+
+# Create ZIP with proper structure: module@version/...
+RUN mkdir -p "{{.ModulePath}}@v{{.Version}}" && \
+    cp go.mod "{{.ModulePath}}@v{{.Version}}/" && \
+    cp go.sum "{{.ModulePath}}@v{{.Version}}/" 2>/dev/null || true && \
+    cp -r lib "{{.ModulePath}}@v{{.Version}}/" && \
+    cd "{{.ModulePath}}@v{{.Version}}" && \
+    zip -r /build/module.zip .
+
+# Upload to Gitea
+RUN --mount=type=secret,id=gitea_token \
+    GITEA_TOKEN=$(cat /run/secrets/gitea_token) && \
+    curl -f -X PUT \
+    -H "Authorization: token ${GITEA_TOKEN}" \
+    -H "Content-Type: application/zip" \
+    --data-binary @/build/module.zip \
+    "{{.RegistryUrl}}/go/upload"
+
+CMD ["sh", "-c", "echo 'Go client build and upload complete'"]

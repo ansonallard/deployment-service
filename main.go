@@ -179,10 +179,16 @@ func main() {
 	}
 	openAPIProcessor, err := openapiBp.NewOpenAPIProcessor(openapiBp.OpenAPIProcessorConfig{
 		DockerReleaser: dockerReleaser,
+		RegistryUrl:    env.GetArtifactRegistryURL(ctx),
 		TypescriptClientConfig: &openapiBp.TypescriptClientConfig{
 			NpmrcPath:    env.GetNPMRCPath(ctx),
 			PackageScope: env.GetNPMPackageScope(ctx),
-			RegistryURL:  env.GetArtifactRegistryURL(ctx),
+		},
+		GoClientConfig: &openapiBp.GoClientConfig{
+			// TODO: populate
+			Owner:          "",
+			ModuleBasePath: "",
+			Token:          "",
 		},
 	})
 	if err != nil {
