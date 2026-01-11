@@ -33,8 +33,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-//go:generate go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen -config=types.cfg.yaml public/deployment-service.openapi.yaml
-
 const (
 	defaultIPv4OpenAddress = "0.0.0.0"
 	defaultLogFileName     = "combined.log"
