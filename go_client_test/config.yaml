@@ -1,0 +1,8 @@
+package: lib
+generate:
+  models: true
+  client: true
+  embedded-spec: true
+output-options:
+  response-type-suffix: Resp
+output: lib/client.go

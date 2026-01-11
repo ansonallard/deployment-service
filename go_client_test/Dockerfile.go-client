@@ -1,0 +1,24 @@
+FROM golang:1.24-alpine
+
+WORKDIR /build
+
+# Install oapi-codegen
+RUN go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+
+# Copy files
+COPY go.mod .
+COPY config.yaml .
+COPY *.yaml ./
+
+# Create output directory
+RUN mkdir -p lib
+
+# Generate Go client
+RUN oapi-codegen -config=config.yaml bobawars-model.openapi.yaml
+
+# Download dependencies to create go.sum
+RUN go mod download
+
+# The generated files will be in /build/generated
+# Docker will copy them out when we run the container
+CMD ["sh", "-c", "echo 'Build complete'"]

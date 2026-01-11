@@ -1,0 +1,1095 @@
+openapi: 3.0.0
+info:
+    title: bobawars-backend
+    version: "2.0.3"
+servers:
+    - url: /v2
+paths:
+    /users:
+        post:
+            security:
+                - ApiKey: []
+            tags:
+                - Access Control
+            description: Create a user object
+            operationId: createUser
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/CreateUserRequestDto"
+            responses:
+                201:
+                    $ref: "#/components/responses/CreateUserResponseDto"
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                409:
+                    $ref: "#/components/responses/Conflict"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+    /users/login:
+        post:
+            tags:
+                - Access Control
+            description: Login in entity - returns token
+            operationId: login
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/CreateUserRequestDto"
+            responses:
+                200:
+                    description: Login response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/LoginResponse"
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+    /users/resetPassword:
+        post:
+            tags:
+                - Access Control
+            description: Reset password for user - returns token
+            operationId: resetPassword
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/ResetUserPasswordDto"
+            responses:
+                200:
+                    description: Login response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/LoginResponse"
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+    /oauth/token:
+        post:
+            operationId: oauthClientCredentials
+            tags:
+                - Access Control
+            description: Generate access token with client_credentials grant type
+            requestBody:
+                content:
+                    application/x-www-form-urlencoded:
+                        schema:
+                            type: object
+                            properties:
+                                grant_type:
+                                    type: string
+                            required:
+                                - grant_type
+            responses:
+                200:
+                    description: Success
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/ClientCredentialsResponse"
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+    /players/{id}:
+        parameters:
+            - $ref: "#/components/parameters/id"
+        get:
+            security:
+                - BearerToken: []
+            tags:
+                - Players
+            operationId: getPlayer
+            responses:
+                200:
+                    description: Player object
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/PlayerDto"
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                404:
+                    $ref: "#/components/responses/NotFound"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+    /cards:
+        put:
+            security:
+                - ApiKey: []
+            tags:
+                - Cards
+            summary: Create all cards
+            operationId: createCards
+            responses:
+                204:
+                    description: No content
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+    /games:
+        get:
+            security:
+                - BearerToken: []
+            tags:
+                - Game
+            summary: Get all games user is a part of
+            operationId: getGames
+            description: Created
+            parameters:
+                - $ref: "#/components/parameters/skip"
+                - $ref: "#/components/parameters/top"
+            responses:
+                200:
+                    description: List of Games
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: "#/components/schemas/GameDto"
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+        post:
+            security:
+                - BearerToken: []
+            tags:
+                - Game
+            summary: Create a game
+            operationId: createGame
+            responses:
+                201:
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/GameDto"
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+    /games/{id}:
+        parameters:
+            - $ref: "#/components/parameters/id"
+        get:
+            security:
+                - BearerToken: []
+            tags:
+                - Game
+            summary: Get a game
+            operationId: getGame
+            responses:
+                200:
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/GameDto"
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                404:
+                    $ref: "#/components/responses/NotFound"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+    /games/code/{gameCode}:
+        parameters:
+            - $ref: "#/components/parameters/gameCode"
+        get:
+            security:
+                - BearerToken: []
+            tags:
+                - Game
+            summary: Get a game
+            operationId: getGameByCode
+            responses:
+                200:
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/GameDto"
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                404:
+                    $ref: "#/components/responses/NotFound"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+    /games/{id}/players:
+        parameters:
+            - $ref: "#/components/parameters/id"
+        get:
+            security:
+                - BearerToken: []
+            # Don't need to paginate since there is a maximum number of players
+            tags:
+                - Game
+            summary: "Get players in a game"
+            operationId: getPlayersFromGame
+            responses:
+                200:
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: "#/components/schemas/PlayerWithIdDto"
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                404:
+                    $ref: "#/components/responses/NotFound"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+    /games/{id}/players/{playerId}:
+        parameters:
+            - $ref: "#/components/parameters/id"
+            - $ref: "#/components/parameters/playerId"
+        put:
+            security:
+                - BearerToken: []
+            tags:
+                - Game
+            summary: Add player to game
+            operationId: addPlayer
+            responses:
+                204:
+                    description: No Content
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+        get:
+            security:
+                - BearerToken: []
+            tags:
+                - Game
+            summary: Get player
+            operationId: getPlayerFromGame
+            responses:
+                200:
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/GamePlayerDto"
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                404:
+                    $ref: "#/components/responses/NotFound"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+    /games/{id}/start:
+        parameters:
+            - $ref: "#/components/parameters/id"
+            - $ref: "#/components/parameters/If-Match"
+        post:
+            security:
+                - BearerToken: []
+            tags:
+                - Game
+            summary: Start Game
+            operationId: startGame
+            responses:
+                200:
+                    description: OK
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                404:
+                    $ref: "#/components/responses/NotFound"
+                412:
+                    $ref: "#/components/responses/PreConditionFailed"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+    /games/{id}/tableSets:
+        parameters:
+            - $ref: "#/components/parameters/id"
+        get:
+            security:
+                - BearerToken: []
+            summary: Get game table sets
+            tags:
+                - Game
+            operationId: getGameTableSets
+            responses:
+                200:
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/GameTableDto"
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                404:
+                    $ref: "#/components/responses/NotFound"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+    /games/{id}/players/{playerId}/tableSets:
+        parameters:
+            - $ref: "#/components/parameters/id"
+            - $ref: "#/components/parameters/playerId"
+        get:
+            security:
+                - BearerToken: []
+            summary: Get table for current player
+            operationId: getPlayerTableSets
+            tags:
+                - Game
+            responses:
+                200:
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/TableDto"
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                404:
+                    $ref: "#/components/responses/NotFound"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+    /games/{id}/players/{playerId}/tableSets/{tableSetId}/action:
+        parameters:
+            - $ref: "#/components/parameters/id"
+            - $ref: "#/components/parameters/playerId"
+            - $ref: "#/components/parameters/tableSetId"
+            - $ref: "#/components/parameters/If-Match"
+        post:
+            security:
+                - BearerToken: []
+            tags:
+                - Game
+            summary: Play an ingredient card on a table set
+            operationId: playIngredient
+            responses:
+                204:
+                    description: No Content
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                404:
+                    $ref: "#/components/responses/NotFound"
+                412:
+                    $ref: "#/components/responses/PreConditionFailed"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+            requestBody:
+                required: true
+                description: Play ingredient card on a table set
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/IngredientAction"
+    /games/{id}/players/{playerId}/endTurn:
+        parameters:
+            - $ref: "#/components/parameters/id"
+            - $ref: "#/components/parameters/playerId"
+            - $ref: "#/components/parameters/If-Match"
+        post:
+            security:
+                - BearerToken: []
+            tags:
+                - Game
+            summary: End turn for player
+            operationId: endTurn
+            responses:
+                204:
+                    description: No Content
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                404:
+                    $ref: "#/components/responses/NotFound"
+                412:
+                    $ref: "#/components/responses/PreConditionFailed"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+            requestBody:
+                required: true
+                description: End Turn
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/EndTurnDto"
+    /games/{id}/players/{playerId}/action:
+        parameters:
+            - $ref: "#/components/parameters/id"
+            - $ref: "#/components/parameters/playerId"
+            - $ref: "#/components/parameters/If-Match"
+        post:
+            security:
+                - BearerToken: []
+            tags:
+                - Game
+            summary: Play action card for player
+            operationId: playAction
+            responses:
+                204:
+                    description: No Content
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                404:
+                    $ref: "#/components/responses/NotFound"
+                412:
+                    $ref: "#/components/responses/PreConditionFailed"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+            requestBody:
+                required: true
+                description: React
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/ActionDto"
+    /games/{id}/players/{playerId}/react:
+        parameters:
+            - $ref: "#/components/parameters/id"
+            - $ref: "#/components/parameters/playerId"
+            - $ref: "#/components/parameters/If-Match"
+        post:
+            security:
+                - BearerToken: []
+            tags:
+                - Game
+            summary: Play reaction card (Customer Loyalty) or react to a targeted action
+            operationId: react
+            responses:
+                204:
+                    description: Non Content
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                404:
+                    $ref: "#/components/responses/NotFound"
+                412:
+                    $ref: "#/components/responses/PreConditionFailed"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+            requestBody:
+                required: true
+                description: React
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/ReactDto"
+    /games/{id}/targetedPlayer:
+        parameters:
+            - $ref: "#/components/parameters/id"
+        get:
+            security:
+                - BearerToken: []
+            tags:
+                - Game
+            summary: Get Targeted Player Information based on Targeted Player events
+            operationId: getTargetedPlayer
+            responses:
+                200:
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/TargetedPlayerDto"
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                404:
+                    $ref: "#/components/responses/NotFound"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+    /games/{id}/events:
+        parameters:
+            - $ref: "#/components/parameters/id"
+            - $ref: "#/components/parameters/queryAuthorization"
+        get:
+            tags:
+                - Game
+            summary: Register events
+            operationId: registerEvents
+            responses:
+                200:
+                    description: Non Content
+                    content:
+                        "text/event-stream":
+                            schema:
+                                type: object
+                400:
+                    $ref: "#/components/responses/BadRequest"
+                401:
+                    $ref: "#/components/responses/UnAuthorized"
+                403:
+                    $ref: "#/components/responses/Forbidden"
+                404:
+                    $ref: "#/components/responses/NotFound"
+                5XX:
+                    $ref: "#/components/responses/InternalServerError"
+components:
+    schemas:
+        LoginResponse:
+            type: object
+            additionalProperties: false
+            properties:
+                userId:
+                    type: string
+                token:
+                    type: string
+            required:
+                - userId
+                - token
+        PlayerDto:
+            type: object
+            additionalProperties: false
+            properties:
+                username:
+                    type: string
+            required:
+                - username
+        ClientCredentialsResponse:
+            type: object
+            additionalProperties: false
+            properties:
+                access_token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+                token_type:
+                    type: string
+                    example: Bearer
+                expires_in:
+                    type: number
+                    example: 300
+                refresh_token:
+                    type: string
+                    example: asdgniadin23jfaosdfnsoafnalskdnfo2n3afifnk23jnawe
+            required:
+                - access_token
+                - token_type
+                - expires_in
+        TargetedPlayerDto:
+            type: object
+            additionalProperties: false
+            properties:
+                targetedPlayers:
+                    type: array
+                    minItems: 1
+                    items:
+                        $ref: "#/components/schemas/PlayerWithIdDto"
+                attackingPlayer:
+                    $ref: "#/components/schemas/PlayerWithIdDto"
+                card:
+                    $ref: "#/components/schemas/CardDto"
+                customerLoyaltyExp:
+                    type: string
+                    example: "2024-01-01T00:00:00.000Z"
+        CreateUserRequestDto:
+            type: object
+            additionalProperties: false
+            properties:
+                username:
+                    type: string
+                    pattern: ^[a-zA-Z0-9]+$
+                password:
+                    type: string
+                    minLength: 8
+            required:
+                - username
+                - password
+        ResetUserPasswordDto:
+            type: object
+            additionalProperties: false
+            properties:
+                username:
+                    type: string
+                    pattern: ^[a-zA-Z0-9]+$
+                oldPassword:
+                    type: string
+                    minLength: 8
+                newPassword:
+                    type: string
+                    minLength: 8
+            required:
+                - username
+                - oldPassword
+                - newPassword
+        CreatePlayerRequestDto:
+            type: object
+            additionalProperties: false
+            properties:
+                username:
+                    type: string
+                    pattern: ^[a-zA-Z0-9]+$
+                authId:
+                    type: string
+            required:
+                - username
+                - authId
+        version:
+            type: number
+            description: Version of the resource
+        CardDto:
+            type: object
+            additionalProperties: false
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                displayName:
+                    type: string
+                description:
+                    type: string
+                type:
+                    $ref: "#/components/schemas/CardType"
+                subtype:
+                    $ref: "#/components/schemas/CardSubType"
+                actionTarget:
+                    $ref: "#/components/schemas/CardActionTarget"
+                toppingCompatibility:
+                    $ref: "#/components/schemas/CardToppingCompatibility"
+                flavorType:
+                    $ref: "#/components/schemas/CardFlavorType"
+            required:
+                - id
+                - name
+                - type
+                - displayName
+        CardType:
+            type: string
+            enum: ["INGREDIENT", "ACTION", "REACTION"]
+        CardSubType:
+            type: string
+            enum: ["TEA", "FLAVOR", "TOPPING", "WILD"]
+        CardActionTarget:
+            type: string
+            enum: ["PLAYER", "TABLE", "ACTION", "ALL", "SELF"]
+        CardToppingCompatibility:
+            type: string
+            enum: ["MILK", "FRUIT", "ALL"]
+        CardFlavorType:
+            type: string
+            enum: ["MILK", "FRUIT"]
+        PlayerWithIdDto:
+            type: object
+            additionalProperties: false
+            properties:
+                id:
+                    type: string
+                username:
+                    type: string
+            required:
+                - id
+                - username
+        GamePlayerDto:
+            type: object
+            additionalProperties: false
+            properties:
+                id:
+                    type: string
+                username:
+                    type: string
+                hand:
+                    type: array
+                    items:
+                        $ref: "#/components/schemas/CardDto"
+                completedSets:
+                    type: number
+                actionsRemaining:
+                    type: number
+                version:
+                    $ref: "#/components/schemas/version"
+            required:
+                - id
+                - username
+                - hand
+                - completedSets
+                - actionsRemaining
+                - version
+        GameDto:
+            type: object
+            additionalProperties: false
+            properties:
+                id:
+                    type: string
+                winner:
+                    $ref: "#/components/schemas/PlayerWithIdDto"
+                playerCurrentTurn:
+                    $ref: "#/components/schemas/PlayerWithIdDto"
+                state:
+                    $ref: "#/components/schemas/GameState"
+                version:
+                    $ref: "#/components/schemas/version"
+                code:
+                    type: string
+                    pattern: ^[0-9]{6}$
+            required:
+                - id
+                - state
+                - version
+                - code
+        GameState:
+            type: string
+            enum: ["LOBBY", "PLAYING", "COMPLETE"]
+        EndTurnDto:
+            type: object
+            additionalProperties: false
+            properties:
+                cardIdsToDiscard:
+                    type: array
+                    items:
+                        type: string
+                        description: Card Id to discard
+        ActionDto:
+            type: object
+            additionalProperties: false
+            properties:
+                cardId:
+                    type: string
+                    description: Id of card played
+                playerId:
+                    type: string
+                    description: Id of player targeted
+                sugarAndIceAction:
+                    $ref: "#/components/schemas/SugarAndIceAction"
+                teaPartyAction:
+                    $ref: "#/components/schemas/TeaPartyAction"
+                bobawarsCardNames:
+                    deprecated: true
+                    description: "Use attackCardNames instead. If both are provided, attackCardnames takes precedence."
+                    type: array
+                    items:
+                        type: string
+                attackCardNames:
+                    type: array
+                    items:
+                        type: string
+            required:
+                - cardId
+        SugarAndIceAction:
+            type: object
+            required:
+                - targetedCardId
+                - destinationTableSetId
+            properties:
+                destinationTableSetId:
+                    type: string
+                targetedCardId:
+                    type: string
+        TeaPartyAction:
+            type: object
+            required:
+                - destinationTableSetIds
+                - sourceTableSetIds
+            properties:
+                destinationTableSetIds:
+                    type: array
+                    items:
+                        type: string
+                        minItems: 1
+                        maxItems: 2
+                sourceTableSetIds:
+                    type: array
+                    items:
+                        type: string
+                        minItems: 1
+                        maxItems: 2
+        ReactDto:
+            type: object
+            additionalProperties: false
+            properties:
+                cardId:
+                    type: string
+                tableSetId:
+                    type: string
+            required:
+                - cardId
+        GameTableDto:
+            type: array
+            items:
+                $ref: "#/components/schemas/GameTableDtoEntry"
+        GameTableDtoEntry:
+            type: object
+            additionalProperties: false
+            properties:
+                player:
+                    $ref: "#/components/schemas/PlayerWithIdDto"
+                tableSets:
+                    type: array
+                    items:
+                        $ref: "#/components/schemas/TableSetDto"
+                completedSets:
+                    type: number
+            required:
+                - player
+                - tableSets
+                - completedSets
+        TableDto:
+            type: object
+            additionalProperties: false
+            properties:
+                tableSets:
+                    type: array
+                    items:
+                        $ref: "#/components/schemas/TableSetDto"
+                completedSets:
+                    type: number
+                actionsRemaining:
+                    type: number
+        TableSetDto:
+            type: object
+            additionalProperties: false
+            required:
+                - id
+                - cards
+                - completedSet
+            properties:
+                id:
+                    type: string
+                cards:
+                    type: array
+                    items:
+                        $ref: "#/components/schemas/CardDto"
+                completedSet:
+                    type: boolean
+                protection:
+                    $ref: "#/components/schemas/TableSetProtection"
+        TableSetProtection:
+            type: string
+            enum: ["STRAW", "BOBASURANCE", "NONE"]
+        IngredientAction:
+            type: object
+            additionalProperties: false
+            properties:
+                cardId:
+                    type: string
+                ingredientActionSelection:
+                    $ref: "#/components/schemas/IngredientActionSelection"
+            required:
+                - cardId
+        IngredientActionSelection:
+            type: string
+            enum: ["DRAW", "PLAY"]
+    parameters:
+        id:
+            name: id
+            required: true
+            in: path
+            schema:
+                type: string
+        gameCode:
+            name: gameCode
+            required: true
+            in: path
+            schema:
+                type: string
+                pattern: ^\d{6}$
+        playerId:
+            name: playerId
+            required: true
+            in: path
+            schema:
+                type: string
+        tableSetId:
+            name: tableSetId
+            required: true
+            in: path
+            schema:
+                type: string
+        If-Match:
+            name: If-Match
+            in: header
+            required: true
+            description: Field for optimistic locking
+            schema:
+                type: number
+        skip:
+            name: skip
+            in: query
+            required: true
+            description: Pagination skip value
+            schema:
+                type: number
+        queryAuthorization:
+            name: token
+            in: query
+            required: true
+            description: Access token for server sent events
+            schema:
+                type: string
+        top:
+            name: top
+            in: query
+            required: true
+            description: Pagination top value
+            schema:
+                type: number
+    responses:
+        CreateUserResponseDto:
+            description: CreateUserResponseDto
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        additionalProperties: false
+                        description: User created
+                        properties:
+                            id:
+                                type: string
+                        required:
+                            - id
+        InternalServerError:
+            description: Internal Server Error
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            message:
+                                type: string
+        Conflict:
+            description: Resource conflict
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            message:
+                                type: string
+        PreConditionFailed:
+            description: Precondition Failed
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            message:
+                                type: string
+        NotFound:
+            description: Resource not found
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            message:
+                                type: string
+        BadRequest:
+            description: Bad request
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            message:
+                                type: string
+        UnAuthorized:
+            description: Not Authorized
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            message:
+                                type: string
+        Forbidden:
+            description: Forbidden
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            message:
+                                type: string
+    headers:
+        ETag:
+            description: The version of the resource you requested
+            schema:
+                type: number
+    securitySchemes:
+        ApiKey:
+            type: apiKey
+            in: header
+            name: x-api-key
+        BearerToken:
+            type: http
+            scheme: bearer
+            bearerFormat: JWT
