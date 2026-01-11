@@ -1,5 +1,8 @@
 generate:
   models: true
   embedded-spec: true
+  client: true
+output-options:
+  response-type-suffix: Resp
 output: internal/api/types.gen.go
 package: api
