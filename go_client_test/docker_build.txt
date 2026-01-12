@@ -1,0 +1,1 @@
+docker build --secret id=gitea_token,src=./gitea_token.txt -t bobawars-upload .

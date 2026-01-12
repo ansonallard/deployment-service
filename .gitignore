@@ -1,2 +1,3 @@
 .env
 deployment-service
+go_client_test/gitea_token.txt
