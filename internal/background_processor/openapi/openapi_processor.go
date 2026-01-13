@@ -23,6 +23,7 @@ import (
 
 const (
 	npmrcSecretKey = "npmrc"
+	gitTeaPATKey   = "gitea_token"
 )
 
 type OpenAPIProcessor interface {
@@ -59,7 +60,6 @@ type TypescriptClientConfig struct {
 }
 
 type GoClientConfig struct {
-	Owner          string // Package owner in Gitea
 	Token          string // Authentication token for Gitea
 	ModuleBasePath string // e.g., "gitea.yourcompany.com/clients"
 }
@@ -83,9 +83,6 @@ func NewOpenAPIProcessor(config OpenAPIProcessorConfig) (OpenAPIProcessor, error
 	}
 	if config.RegistryUrl == "" {
 		return nil, fmt.Errorf("RegistryURL not provided")
-	}
-	if config.GoClientConfig.Owner == "" {
-		return nil, fmt.Errorf("GoClientConfig.Owner not provided")
 	}
 	if config.GoClientConfig.Token == "" {
 		return nil, fmt.Errorf("GoClientConfig.Token not provided")
@@ -248,7 +245,7 @@ func (op *openAPIProcessor) buildAndDeployTypescriptClient(
 	}
 
 	// Build and publish using Docker
-	if err := op.buildAndPublishDockerClient(ctx, buildDir, imageName, nextVersion); err != nil {
+	if err := op.buildAndPublishTypescriptDockerClient(ctx, buildDir, imageName, nextVersion); err != nil {
 		return fmt.Errorf("failed to build and publish client: %w", err)
 	}
 
@@ -311,18 +308,6 @@ func (op *openAPIProcessor) buildAndDeployGoClient(
 	if err := op.buildGoClientDocker(ctx, buildDir, imageName, nextVersion); err != nil {
 		return fmt.Errorf("failed to build Go client: %w", err)
 	}
-
-	// Create ZIP of generated Go module
-	// zipPath := filepath.Join(buildDir, "module.zip")
-	// moduleName := op.getGoClientModuleName(service)
-	// if err := op.createGoModuleZip(buildDir, moduleName, nextVersion, zipPath); err != nil {
-	// 	return fmt.Errorf("failed to create Go module ZIP: %w", err)
-	// }
-
-	// // Upload to Gitea
-	// if err := op.uploadGoModuleToGitea(ctx, zipPath); err != nil {
-	// 	return fmt.Errorf("failed to upload Go module to Gitea: %w", err)
-	// }
 
 	log.Info().
 		Str("service", service.Name.Name).
@@ -425,7 +410,7 @@ func (op *openAPIProcessor) generateGoClientConfigFiles(
 
 	templateData := goClientTemplateData{
 		ModulePath:      modulePath,
-		Version:         version.String(),
+		Version:         op.generateGoClientVersion(version),
 		PackageName:     packageName,
 		OpenAPIFileName: filepath.Base(service.Configuration.OpenAPI.OpenAPI.YamlFile),
 		OutputPath:      outputPath,
@@ -477,6 +462,10 @@ func (op *openAPIProcessor) generateGoClientName(service *model.Service) string 
 		clientName = fmt.Sprintf("%s-go-client", service.Name.Name)
 	}
 	return strings.ReplaceAll(clientName, "-", "_")
+}
+
+func (op *openAPIProcessor) generateGoClientVersion(version *semver.Version) string {
+	return fmt.Sprintf("v%s", version.String())
 }
 
 func (op *openAPIProcessor) generateFileFromTemplate(
@@ -535,7 +524,7 @@ func copyFile(src, dst string) error {
 	return nil
 }
 
-func (op *openAPIProcessor) buildAndPublishDockerClient(
+func (op *openAPIProcessor) buildAndPublishTypescriptDockerClient(
 	ctx context.Context,
 	buildDir string,
 	imageName string,
@@ -566,8 +555,7 @@ func (op *openAPIProcessor) buildGoClientDocker(
 		"Dockerfile",
 		[]string{op.generateOpenAPIDockerFullyQualifiedImageName(imageName, version)},
 		map[string][]byte{
-			// TODO: Populate
-			"gitea_token": []byte(""),
+			gitTeaPATKey: []byte(op.goClientConfig.Token),
 		},
 	)
 }
@@ -585,143 +573,6 @@ func (op *openAPIProcessor) generateDockerBuildSecrets() (map[string][]byte, err
 func (op *openAPIProcessor) generateOpenAPIDockerFullyQualifiedImageName(imageName string, version *semver.Version) string {
 	return op.dockerReleaser.FullyQualifiedImageTag(imageName, version)
 }
-
-// func (op *openAPIProcessor) createGoModuleZip(
-// 	buildDir string,
-// 	moduleName string,
-// 	version *semver.Version,
-// 	zipPath string,
-// ) error {
-// 	// Create the ZIP file
-// 	zipFile, err := os.Create(zipPath)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to create ZIP file: %w", err)
-// 	}
-// 	defer zipFile.Close()
-
-// 	zipWriter := zip.NewWriter(zipFile)
-// 	defer zipWriter.Close()
-
-// 	// The module should be structured as: module@version/...
-// 	modulePrefix := fmt.Sprintf("%s@v%s", moduleName, version.String())
-
-// 	// Walk the build directory and add files to ZIP
-// 	generatedDir := filepath.Join(buildDir, "generated")
-// 	if _, err := os.Stat(generatedDir); os.IsNotExist(err) {
-// 		return fmt.Errorf("generated directory not found: %s", generatedDir)
-// 	}
-
-// 	// Add go.mod
-// 	if err := op.addFileToZip(zipWriter, filepath.Join(buildDir, "go.mod"), filepath.Join(modulePrefix, "go.mod")); err != nil {
-// 		return err
-// 	}
-
-// 	// Add go.sum if it exists
-// 	goSumPath := filepath.Join(buildDir, "go.sum")
-// 	if _, err := os.Stat(goSumPath); err == nil {
-// 		if err := op.addFileToZip(zipWriter, goSumPath, filepath.Join(modulePrefix, "go.sum")); err != nil {
-// 			return err
-// 		}
-// 	}
-
-// 	// Add generated files
-// 	err = filepath.Walk(generatedDir, func(path string, info os.FileInfo, err error) error {
-// 		if err != nil {
-// 			return err
-// 		}
-
-// 		if info.IsDir() {
-// 			return nil
-// 		}
-
-// 		// Get relative path from generatedDir
-// 		relPath, err := filepath.Rel(generatedDir, path)
-// 		if err != nil {
-// 			return err
-// 		}
-
-// 		// Add to ZIP with module prefix
-// 		zipPath := filepath.Join(modulePrefix, relPath)
-// 		return op.addFileToZip(zipWriter, path, zipPath)
-// 	})
-
-// 	if err != nil {
-// 		return fmt.Errorf("failed to walk generated directory: %w", err)
-// 	}
-
-// 	return nil
-// }
-
-// func (op *openAPIProcessor) addFileToZip(zipWriter *zip.Writer, filePath, zipPath string) error {
-// 	// Normalize path separators for ZIP (always use forward slash)
-// 	zipPath = strings.ReplaceAll(zipPath, string(filepath.Separator), "/")
-
-// 	file, err := os.Open(filePath)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to open file %s: %w", filePath, err)
-// 	}
-// 	defer file.Close()
-
-// 	writer, err := zipWriter.Create(zipPath)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to create ZIP entry %s: %w", zipPath, err)
-// 	}
-
-// 	if _, err := io.Copy(writer, file); err != nil {
-// 		return fmt.Errorf("failed to write file to ZIP: %w", err)
-// 	}
-
-// 	return nil
-// }
-
-// func (op *openAPIProcessor) uploadGoModuleToGitea(ctx context.Context, zipPath string) error {
-// 	log := zerolog.Ctx(ctx)
-
-// 	// Read the ZIP file
-// 	zipData, err := os.ReadFile(zipPath)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to read ZIP file: %w", err)
-// 	}
-
-// 	// Construct upload URL
-// 	uploadURL := fmt.Sprintf("%s/go/upload",
-// 		strings.TrimSuffix(op.registryUrl, "/"),
-// 	)
-
-// 	// Create HTTP request
-// 	req, err := http.NewRequestWithContext(ctx, "PUT", uploadURL, bytes.NewReader(zipData))
-// 	if err != nil {
-// 		return fmt.Errorf("failed to create HTTP request: %w", err)
-// 	}
-
-// 	// Set authentication header
-// 	req.Header.Set("Authorization", fmt.Sprintf("token %s", op.goClientConfig.Token))
-// 	req.Header.Set("Content-Type", "application/zip")
-
-// 	// Send request
-// 	client := &http.Client{
-// 		Timeout: 5 * time.Minute,
-// 	}
-// 	resp, err := client.Do(req)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to upload to Gitea: %w", err)
-// 	}
-// 	defer resp.Body.Close()
-
-// 	// Check response
-// 	if resp.StatusCode != http.StatusCreated {
-// 		body, _ := io.ReadAll(resp.Body)
-// 		return fmt.Errorf("failed to upload Go module to Gitea: status %d, body: %s",
-// 			resp.StatusCode, string(body))
-// 	}
-
-// 	log.Info().
-// 		Str("url", uploadURL).
-// 		Int("status", resp.StatusCode).
-// 		Msg("Successfully uploaded Go module to Gitea")
-
-// 	return nil
-// }
 
 func generateBuildID() string {
 	return time.Now().UTC().Format(time.RFC3339)

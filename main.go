@@ -183,10 +183,8 @@ func main() {
 			PackageScope: env.GetNPMPackageScope(ctx),
 		},
 		GoClientConfig: &openapiBp.GoClientConfig{
-			// TODO: populate
-			Owner:          "",
-			ModuleBasePath: "",
-			Token:          "",
+			ModuleBasePath: env.GetArtifactPrefix(ctx),
+			Token:          env.GetArtifactRegistryPAT(ctx),
 		},
 	})
 	if err != nil {

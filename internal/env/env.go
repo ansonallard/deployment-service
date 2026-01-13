@@ -78,6 +78,10 @@ func GetArtifactRegistryURL(ctx context.Context) string {
 	return getRequiredEnvVar(ctx, "ARTIFACT_REGISTRY_URL")
 }
 
+func GetArtifactRegistryPAT(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "ARTIFACT_PAT")
+}
+
 func GetNPMPackageScope(ctx context.Context) string {
 	return getRequiredEnvVar(ctx, "NPM_PACKAGE_SCOPE")
 }
