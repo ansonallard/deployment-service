@@ -173,6 +173,14 @@ func (s *Service) handleOpenApiconfiugration(serviceConfig api.ServiceConfigurat
 			},
 		}
 	}
+
+	if openapiConfigurationDto.Openapi.GoClient != nil {
+		internalServiceConfig.OpenAPI.OpenAPI.GoClient = &GoClient{
+			Name: Name{
+				Name: openapiConfigurationDto.Openapi.GoClient.Name,
+			},
+		}
+	}
 	return &internalServiceConfig, nil
 }
 
@@ -226,15 +234,23 @@ func (s *Service) toNpmExternal(serviceDto *api.Service) {
 }
 
 func (s *Service) toOpenApiExternal(serviceDto *api.Service) {
-	serviceDto.Configuration = api.ServiceConfiguration{}
 	openapiConfig := api.OpenAPIConfigurationChoices{
 		YamlFile: s.Configuration.OpenAPI.OpenAPI.YamlFile,
 	}
+
 	if s.Configuration.OpenAPI.OpenAPI.TypescriptClient != nil {
 		openapiConfig.TypescriptClient = &api.OpenAPITypescriptClientConfig{
 			Name: s.Configuration.OpenAPI.OpenAPI.TypescriptClient.Name.Name,
 		}
 	}
+
+	if s.Configuration.OpenAPI.OpenAPI.GoClient != nil {
+		openapiConfig.GoClient = &api.OpenAPIGoClientConfig{
+			Name: s.Configuration.OpenAPI.OpenAPI.GoClient.Name.Name,
+		}
+	}
+
+	serviceDto.Configuration = api.ServiceConfiguration{}
 	serviceDto.Configuration.FromOpenAPIConfiguration(api.OpenAPIConfiguration{
 		Openapi: openapiConfig,
 	})
