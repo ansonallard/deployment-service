@@ -199,6 +199,7 @@ func main() {
 		},
 		NpmServiceProcessor: npmServiceProcessor,
 		OpenAPIProcessor:    openAPIProcessor,
+		IsDev:               env.IsDevMode(),
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to instantiate background processor")

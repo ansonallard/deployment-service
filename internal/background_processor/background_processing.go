@@ -35,6 +35,7 @@ type BackgroundProcessorConfig struct {
 	CiCommitAuthor      *CiCommitAuthor
 	NpmServiceProcessor npm.NPMServiceProcessor
 	OpenAPIProcessor    openapi.OpenAPIProcessor
+	IsDev               bool
 }
 
 type CiCommitAuthor struct {
@@ -73,6 +74,7 @@ func NewBackgroundProcessor(config BackgroundProcessorConfig) (BackgroundProcess
 			ciCommmitAuthor:     config.CiCommitAuthor,
 			npmServiceProcessor: config.NpmServiceProcessor,
 			openAPIProcessor:    config.OpenAPIProcessor,
+			isDevMode:           config.IsDev,
 		},
 		nil
 }
@@ -84,6 +86,7 @@ type backgroundProcessor struct {
 	ciCommmitAuthor     *CiCommitAuthor
 	npmServiceProcessor npm.NPMServiceProcessor
 	openAPIProcessor    openapi.OpenAPIProcessor
+	isDevMode           bool
 }
 
 func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *model.Service) error {
@@ -117,14 +120,16 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 		}
 	}
 
-	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Commiting changes")
-	if err := bp.commitChanges(service.GitRepoFilePath, nextVersion); err != nil {
-		return err
-	}
+	if !bp.isDevMode {
+		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Commiting changes")
+		if err := bp.commitChanges(service.GitRepoFilePath, nextVersion); err != nil {
+			return err
+		}
 
-	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Tagging and pushing changes")
-	if err := bp.tagAndPushChanges(service.GitRepoFilePath, *nextVersion); err != nil {
-		return err
+		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Tagging and pushing changes")
+		if err := bp.tagAndPushChanges(service.GitRepoFilePath, *nextVersion); err != nil {
+			return err
+		}
 	}
 
 	switch {
