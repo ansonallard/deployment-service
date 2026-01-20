@@ -324,7 +324,7 @@ func zeroLogConfiguration(logFile *os.File) context.Context {
 		writer = os.Stdout
 	}
 
-	zerolog.TimeFieldFormat = time.RFC3339
+	zerolog.TimeFieldFormat = time.RFC3339Nano
 	logger := zerolog.New(writer).With().
 		Timestamp().
 		Str("serviceName", serviceName).
