@@ -8,9 +8,9 @@ paths:
   /services:
     post:
       security:
-      - APIKey: []
+        - APIKey: []
       tags:
-      - Services
+        - Services
       operationId: CreateService
       requestBody:
         content:
@@ -34,13 +34,13 @@ paths:
           $ref: "#/components/responses/InternalServerError"
     get:
       security:
-      - APIKey: []
+        - APIKey: []
       tags:
-      - Services
+        - Services
       operationId: ListServices
       parameters:
-      - $ref: "#/components/parameters/MaxResults"
-      - $ref: "#/components/parameters/NextTokenInput"
+        - $ref: "#/components/parameters/MaxResults"
+        - $ref: "#/components/parameters/NextTokenInput"
       responses:
         200:
           $ref: "#/components/responses/ListServicesResponse"
@@ -54,16 +54,16 @@ paths:
           $ref: "#/components/responses/TooManyRequests"
         5XX:
           $ref: "#/components/responses/InternalServerError"
-    
+
   /services/{name}:
     get:
       security:
-      - APIKey: []
+        - APIKey: []
       tags:
-      - Services
+        - Services
       operationId: GetService
       parameters:
-      - $ref: "#/components/parameters/Name"
+        - $ref: "#/components/parameters/Name"
       responses:
         200:
           $ref: "#/components/responses/GetServiceResponse"
@@ -84,7 +84,7 @@ components:
       type: object
       additionalProperties: false
       required:
-      - service
+        - service
       properties:
         service:
           $ref: "#/components/schemas/ServiceInput"
@@ -92,7 +92,7 @@ components:
       type: object
       additionalProperties: false
       required:
-      - service
+        - service
       properties:
         service:
           $ref: "#/components/schemas/Service"
@@ -100,7 +100,7 @@ components:
       type: object
       additionalProperties: false
       required:
-      - service
+        - service
       properties:
         service:
           $ref: "#/components/schemas/Service"
@@ -108,7 +108,7 @@ components:
       type: object
       additionalProperties: false
       required:
-      - services
+        - services
       properties:
         services:
           $ref: "#/components/schemas/Services"
@@ -136,28 +136,28 @@ components:
     ServiceConfiguration:
       type: object
       oneOf:
-      - $ref: "#/components/schemas/NPMConfiguration"
-      - $ref: "#/components/schemas/OpenAPIConfiguration"
+        - $ref: "#/components/schemas/NPMConfiguration"
+        - $ref: "#/components/schemas/OpenAPIConfiguration"
       # - $ref: "#/components/schemas/GoConfiguration"
       # - $ref: "#/components/schemas/NginxConfiguration"
     NPMConfiguration:
       type: object
       additionalProperties: false
       required:
-      - npm
+        - npm
       properties:
         npm:
           $ref: "#/components/schemas/NPMConfigurationChoices"
     NPMConfigurationChoices:
       type: object
       oneOf:
-      - $ref: "#/components/schemas/NPMService"
-      - $ref: "#/components/schemas/NPMLibrary"
+        - $ref: "#/components/schemas/NPMService"
+        - $ref: "#/components/schemas/NPMLibrary"
     NPMService:
       type: object
       additionalProperties: false
       required:
-      - service
+        - service
       properties:
         service:
           $ref: "#/components/schemas/NPMServiceConfiguration"
@@ -193,7 +193,7 @@ components:
       type: object
       additionalProperties: false
       required:
-      - library
+        - library
       properties:
         library:
           $ref: "#/components/schemas/NPMLibraryConfiguration"
@@ -206,7 +206,7 @@ components:
       type: object
       additionalProperties: false
       required:
-      - openapi
+        - openapi
       properties:
         openapi:
           $ref: "#/components/schemas/OpenAPIConfigurationChoices"
@@ -228,7 +228,7 @@ components:
           type: string
           description: Name of typescript client. Service defined scope will be added.
       required:
-      - name
+        - name
     NginxConfiguration:
       type: object
       additionalProperties: false
@@ -240,8 +240,8 @@ components:
       type: object
       additionalProperties: false
       required:
-      - sshUrl
-      - branchName
+        - sshUrl
+        - branchName
       properties:
         sshUrl:
           $ref: "#/components/schemas/SSHUrl"
@@ -253,22 +253,22 @@ components:
     BranchName:
       type: string
     Service:
-        type: object
-        required:
-          - id
-          - name
-          - git
-          - configuration
-        additionalProperties: false
-        properties:
-          id:
-            $ref: "#/components/schemas/ID"
-          name:
-            $ref: "#/components/schemas/Name"
-          git:
-            $ref: "#/components/schemas/GitConfiguration"
-          configuration:
-            $ref: "#/components/schemas/ServiceConfiguration"
+      type: object
+      required:
+        - id
+        - name
+        - git
+        - configuration
+      additionalProperties: false
+      properties:
+        id:
+          $ref: "#/components/schemas/ID"
+        name:
+          $ref: "#/components/schemas/Name"
+        git:
+          $ref: "#/components/schemas/GitConfiguration"
+        configuration:
+          $ref: "#/components/schemas/ServiceConfiguration"
     ID:
       type: string
       description: Resource ID - ULID
