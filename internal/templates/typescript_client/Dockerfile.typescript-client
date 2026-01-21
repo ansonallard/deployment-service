@@ -7,7 +7,8 @@ COPY package.json openapi-ts.config.ts .prettierrc.json ./
 COPY *.yaml ./
 
 # Install dependencies with latest versions
-RUN npm install --save-dev @hey-api/openapi-ts @hey-api/client-axios prettier
+RUN npm i @hey-api/client-axios axios && \
+    npm i -D @hey-api/openapi-ts prettier
 
 # Generate the OpenAPI client
 RUN npm run generate-openapi-client
