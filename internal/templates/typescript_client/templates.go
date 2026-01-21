@@ -11,5 +11,5 @@ var OpenapiConfigTemplate string
 //go:embed .prettierrc.json
 var PrettierrcContent string
 
-//go:embed Dockerfile.openapi-client
+//go:embed Dockerfile.typescript-client
 var DockerfileContent string
