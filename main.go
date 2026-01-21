@@ -167,10 +167,18 @@ func main() {
 	envWriter := service.NewEnvFileWriter()
 
 	versioner := version.NewVersioner()
+
+	npmrcPath := env.GetNPMRCPath(ctx)
+	npmrcFileBytes, err := os.ReadFile(npmrcPath)
+	if err != nil {
+		log.Fatal().Err(err).Str("npmrcPath", npmrcPath).Msg("Failed to read npmrc")
+	}
+
 	npmServiceProcessor, err := npm.NewNPMServiceProcessor(npm.NPMServiceProcessorConfig{
 		DockerReleaser: dockerReleaser,
 		Compose:        dockerCompose,
 		EnvWriter:      envWriter,
+		NpmrcData:      npmrcFileBytes,
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to instantiate npm service processor")
@@ -179,7 +187,7 @@ func main() {
 		DockerReleaser: dockerReleaser,
 		RegistryUrl:    env.GetArtifactRegistryURL(ctx),
 		TypescriptClientConfig: &openapiBp.TypescriptClientConfig{
-			NpmrcPath:    env.GetNPMRCPath(ctx),
+			NpmrcData:    npmrcFileBytes,
 			PackageScope: env.GetNPMPackageScope(ctx),
 		},
 		GoClientConfig: &openapiBp.GoClientConfig{

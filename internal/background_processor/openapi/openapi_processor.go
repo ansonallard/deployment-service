@@ -21,11 +21,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const (
-	npmrcSecretKey = "npmrc"
-	gitTeaPATKey   = "gitea_token"
-)
-
 type OpenAPIProcessor interface {
 	SetOpenApiYamlVersion(service *model.Service, version *semver.Version) error
 	BuildAndDeployOpenAPIClient(
@@ -55,7 +50,7 @@ type goClientTemplateData struct {
 }
 
 type TypescriptClientConfig struct {
-	NpmrcPath    string // Path to .npmrc file for npm authentication
+	NpmrcData    []byte
 	PackageScope string // e.g., "ansonallard" for @ansonallard/package-name
 }
 
@@ -78,8 +73,8 @@ func NewOpenAPIProcessor(config OpenAPIProcessorConfig) (OpenAPIProcessor, error
 	if config.TypescriptClientConfig == nil {
 		return nil, fmt.Errorf("TypescriptClientConfig not provided")
 	}
-	if config.TypescriptClientConfig.NpmrcPath == "" {
-		return nil, fmt.Errorf("TypescriptClientConfig.NpmrcPath not provided")
+	if config.TypescriptClientConfig.NpmrcData == nil {
+		return nil, fmt.Errorf("TypescriptClientConfig.NpmrcData not provided")
 	}
 	if config.TypescriptClientConfig.PackageScope == "" {
 		return nil, fmt.Errorf("TypescriptClientConfig.PackageScope not provided")
@@ -533,16 +528,14 @@ func (op *openAPIProcessor) buildAndPublishTypescriptDockerClient(
 	imageName string,
 	version *semver.Version,
 ) error {
-	secrets, err := op.generateDockerBuildSecrets()
-	if err != nil {
-		return err
-	}
 	return op.dockerReleaser.BuildImageWithSecrets(
 		ctx,
 		buildDir,
 		"Dockerfile",
 		[]string{op.generateOpenAPIDockerFullyQualifiedImageName(imageName, version)},
-		secrets,
+		map[string][]byte{
+			releaser.NpmrcSecretKey: op.typescriptClientConfig.NpmrcData,
+		},
 	)
 }
 
@@ -558,19 +551,9 @@ func (op *openAPIProcessor) buildGoClientDocker(
 		"Dockerfile",
 		[]string{op.generateOpenAPIDockerFullyQualifiedImageName(imageName, version)},
 		map[string][]byte{
-			gitTeaPATKey: []byte(op.goClientConfig.Token),
+			releaser.GitTeaPATKey: []byte(op.goClientConfig.Token),
 		},
 	)
-}
-
-func (op *openAPIProcessor) generateDockerBuildSecrets() (map[string][]byte, error) {
-	npmrcBytes, err := os.ReadFile(op.typescriptClientConfig.NpmrcPath)
-	if err != nil {
-		return nil, err
-	}
-	return map[string][]byte{
-		npmrcSecretKey: npmrcBytes,
-	}, nil
 }
 
 func (op *openAPIProcessor) generateOpenAPIDockerFullyQualifiedImageName(imageName string, version *semver.Version) string {

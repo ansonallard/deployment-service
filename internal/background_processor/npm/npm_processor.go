@@ -31,12 +31,14 @@ type NPMServiceProcessorConfig struct {
 	DockerReleaser releaser.DockerReleaser
 	Compose        compose.ComposeRunner
 	EnvWriter      service.EnvFileWriter
+	NpmrcData      []byte
 }
 
 type npmServiceProcessor struct {
 	dockerReleaser releaser.DockerReleaser
 	compose        compose.ComposeRunner
 	envFileWriter  service.EnvFileWriter
+	npmrcData      []byte
 }
 
 func NewNPMServiceProcessor(config NPMServiceProcessorConfig) (NPMServiceProcessor, error) {
@@ -49,10 +51,14 @@ func NewNPMServiceProcessor(config NPMServiceProcessorConfig) (NPMServiceProcess
 	if config.EnvWriter == nil {
 		return nil, fmt.Errorf("envwriter not provided")
 	}
+	if config.NpmrcData == nil {
+		return nil, fmt.Errorf("NpmrcData not provided")
+	}
 	return &npmServiceProcessor{
 		dockerReleaser: config.DockerReleaser,
 		compose:        config.Compose,
 		envFileWriter:  config.EnvWriter,
+		npmrcData:      config.NpmrcData,
 	}, nil
 }
 
@@ -87,13 +93,16 @@ func (nsp *npmServiceProcessor) BuildAndDeployNpmService(
 	ctx context.Context, service *model.Service, nextVersion *semver.Version,
 ) error {
 	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Building image")
-	if err := nsp.dockerReleaser.BuildImage(
+	if err := nsp.dockerReleaser.BuildImageWithSecrets(
 		ctx,
 		service.GitRepoFilePath,
 		service.Configuration.Npm.Service.DockerfilePath,
 		[]string{
 			nsp.dockerReleaser.FullyQualifiedImageTag(service.Name.Name, nextVersion),
 			nsp.dockerReleaser.CreateArtifactTag(service.Name.Name, nextVersion),
+		},
+		map[string][]byte{
+			releaser.NpmrcSecretKey: nsp.npmrcData,
 		},
 	); err != nil {
 		return err
