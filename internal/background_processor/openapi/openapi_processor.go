@@ -385,12 +385,21 @@ func (op *openAPIProcessor) generateTypescriptClientConfigFiles(
 	}
 
 	// Write Dockerfile
-	if err := os.WriteFile(
+	if err := op.generateFileFromTemplate(
 		filepath.Join(buildDir, "Dockerfile"),
-		[]byte(typescriptclient.DockerfileContent),
-		0644,
+		typescriptclient.DockerfileContent,
+		templateData,
 	); err != nil {
-		return fmt.Errorf("failed to write Dockerfile: %w", err)
+		return fmt.Errorf("failed to generate Dockerfile: %w", err)
+	}
+
+	// Write TsConfig
+	if err := op.generateFileFromTemplate(
+		filepath.Join(buildDir, "tsconfig.json"),
+		typescriptclient.TsConfigContent,
+		templateData,
+	); err != nil {
+		return fmt.Errorf("failed to generate tsconfig.json: %w", err)
 	}
 
 	return nil

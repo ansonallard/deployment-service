@@ -2,9 +2,12 @@
   "name": "{{.PackageName}}",
   "version": "{{.Version}}",
   "description": "{{.Description}}",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "format-fix": "prettier . --write",
-    "generate-openapi-client": "openapi-ts && npm run format-fix"
+    "generate-openapi-client": "openapi-ts && npm run format-fix",
+    "build": "tsc"
   },
   "keywords": [
     "openapi",
@@ -12,5 +15,8 @@
     "sdk",
     "{{.ServiceName}}"
   ],
-  "author": "Anson Allard"
+  "author": "Anson Allard",
+  "files": [
+    "dist"
+  ]
 }

@@ -13,3 +13,6 @@ var PrettierrcContent string
 
 //go:embed Dockerfile.typescript-client
 var DockerfileContent string
+
+//go:embed tsconfig.json.tmpl
+var TsConfigContent string
