@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/moby/moby/api/types/registry"
@@ -105,6 +106,22 @@ const (
 	dockerBuildCommand = "build"
 )
 
+// Create a writer that logs each line to zerolog
+type zerologWriter struct {
+	logger zerolog.Logger
+	level  zerolog.Level
+}
+
+func (w *zerologWriter) Write(p []byte) (n int, err error) {
+	lines := strings.Split(strings.TrimSuffix(string(p), "\n"), "\n")
+	for _, line := range lines {
+		if line != "" {
+			w.logger.WithLevel(w.level).Msg(line)
+		}
+	}
+	return len(p), nil
+}
+
 // The Moby SDK doesn't support builds with secrets.
 // Docker doesn't expose buildkit directly either, which means
 // we can't use that SDK. For now, use a subprocess to build an
@@ -170,8 +187,9 @@ func (r *dockerReleaser) BuildImageWithSecrets(
 
 	// Create command
 	cmd := exec.CommandContext(ctx, r.pathToDockerCLI, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// Pipe stdout and stderr to zerolog
+	cmd.Stdout = &zerologWriter{logger: *log, level: zerolog.InfoLevel}
+	cmd.Stderr = &zerologWriter{logger: *log, level: zerolog.InfoLevel}
 
 	// Execute the build
 	if err := cmd.Run(); err != nil {
