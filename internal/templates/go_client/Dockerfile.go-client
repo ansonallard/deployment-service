@@ -24,10 +24,11 @@ RUN go mod download
 
 # Create ZIP with proper structure: module@version/...
 RUN MODULE_DIR="{{.ModulePath}}@{{.Version}}" && \
-    mkdir -p "$MODULE_DIR/lib" && \
+    mkdir -p "$MODULE_DIR" && \
     cp go.mod "$MODULE_DIR/" && \
     cp go.sum "$MODULE_DIR/" && \
-    cp lib/* "$MODULE_DIR/lib/" && \
+    cp {{.OpenAPIFileName}} "$MODULE_DIR/" && \
+    cp -r lib "$MODULE_DIR/" && \
     zip -r module.zip "$MODULE_DIR"
 
 # Upload to Gitea

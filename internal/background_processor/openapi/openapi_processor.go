@@ -413,7 +413,7 @@ func (op *openAPIProcessor) generateGoClientConfigFiles(
 	packageName := op.generateGoClientName(service)
 
 	modulePath := op.getGoClientModuleName(service)
-	outputPath := "./lib"
+	outputPath := fmt.Sprintf("./lib/%s", packageName)
 
 	templateData := goClientTemplateData{
 		ModulePath:      modulePath,
