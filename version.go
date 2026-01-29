@@ -1,5 +1,5 @@
 package main
 
 const (
-	serviceVersion = "0.5.4"
+	serviceVersion = "0.5.5"
 )
