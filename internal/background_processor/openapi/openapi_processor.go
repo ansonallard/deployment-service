@@ -443,6 +443,15 @@ func (op *openAPIProcessor) generateGoClientConfigFiles(
 		return fmt.Errorf("failed to generate go.mod: %w", err)
 	}
 
+	// Generate embed.go
+	if err := op.generateFileFromTemplate(
+		filepath.Join(buildDir, "embed.go"),
+		goclient.EmbedGoTemplate,
+		templateData,
+	); err != nil {
+		return fmt.Errorf("failed to generate embed.go: %w", err)
+	}
+
 	// Generate Dockerfile
 	if err := op.generateFileFromTemplate(
 		filepath.Join(buildDir, "Dockerfile"),

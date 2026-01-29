@@ -11,6 +11,7 @@ RUN go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 # Copy files
 COPY go.mod .
 COPY config.yaml .
+COPY embed.go .
 COPY *.yaml ./
 
 # Create output directory
@@ -18,6 +19,10 @@ RUN mkdir -p lib
 
 # Generate Go client
 RUN oapi-codegen -config=config.yaml {{.OpenAPIFileName}}
+
+# Move embed.go and OpenAPI file to the generated package directory
+RUN mv embed.go lib/{{.PackageName}}/ && \
+    cp {{.OpenAPIFileName}} lib/{{.PackageName}}/
 
 # Download dependencies to create go.sum
 RUN go mod download
@@ -27,7 +32,6 @@ RUN MODULE_DIR="{{.ModulePath}}@{{.Version}}" && \
     mkdir -p "$MODULE_DIR" && \
     cp go.mod "$MODULE_DIR/" && \
     cp go.sum "$MODULE_DIR/" && \
-    cp {{.OpenAPIFileName}} "$MODULE_DIR/" && \
     cp -r lib "$MODULE_DIR/" && \
     zip -r module.zip "$MODULE_DIR"
 

@@ -1,0 +1,6 @@
+package {{.PackageName}}
+
+import _ "embed"
+
+//go:embed {{.OpenAPIFileName}}
+var OpenAPISpec []byte

@@ -10,3 +10,6 @@ var OapiConfigTemplate string
 
 //go:embed Dockerfile.go-client
 var DockerfileTemplate string
+
+//go:embed embed.go.tmpl
+var EmbedGoTemplate string
