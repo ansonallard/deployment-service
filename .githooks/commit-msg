@@ -22,7 +22,7 @@ if [[ "$subject_line" =~ ^Merge ]]; then
 fi
 
 # Define the allowed prefixes
-allowed_prefixes=("fix" "feat" "chore" "docs")
+allowed_prefixes=("fix" "feat" "chore" "docs" "ci")
 
 # Check if the commit message follows the conventional format
 valid=0
