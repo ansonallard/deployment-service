@@ -4,17 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	rauthz "github.com/ansonallard/go_utils/openapi/middleware/authz"
+
 	"github.com/ansonallard/deployment-service/internal/ierr"
 	"github.com/getkin/kin-openapi/openapi3filter"
 )
 
-type AuthZ interface {
-	AuthorizeCaller(ctx context.Context, ai *openapi3filter.AuthenticationInput) error
-}
-
-type AuthorizationFunction = func(ctx context.Context, ai *openapi3filter.AuthenticationInput) error
-
-func NewAuthZ(apiKey string) AuthZ {
+func NewAuthZ(apiKey string) rauthz.AuthZ {
 	if apiKey == "" {
 		panic("apiKey not set")
 	}

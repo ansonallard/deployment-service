@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path"
-	"reflect"
 	"time"
 
 	backgroundprocessor "github.com/ansonallard/deployment-service/internal/background_processor"
@@ -18,15 +16,12 @@ import (
 	"github.com/ansonallard/deployment-service/internal/env"
 	"github.com/ansonallard/deployment-service/internal/ierr"
 	"github.com/ansonallard/deployment-service/internal/middleware/authz"
-	"github.com/ansonallard/deployment-service/internal/middleware/openapi"
 	"github.com/ansonallard/deployment-service/internal/model"
 	"github.com/ansonallard/deployment-service/internal/releaser"
 	"github.com/ansonallard/deployment-service/internal/repo"
-	irequest "github.com/ansonallard/deployment-service/internal/request"
 	"github.com/ansonallard/deployment-service/internal/service"
 	"github.com/ansonallard/deployment-service/internal/version"
-	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/getkin/kin-openapi/routers/gorillamux"
+	"github.com/ansonallard/go_utils/openapi"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/moby/moby/client"
@@ -34,9 +29,8 @@ import (
 )
 
 const (
-	defaultIPv4OpenAddress = "0.0.0.0"
-	defaultLogFileName     = "combined.log"
-	serviceName            = "deployment-service"
+	defaultLogFileName = "combined.log"
+	serviceName        = "deployment-service"
 )
 
 func main() {
@@ -69,39 +63,7 @@ func main() {
 
 	log.Info().Msg("Loaded .env file")
 
-	loader := openapi3.NewLoader()
-	openAPISpec, err := loader.LoadFromFile(env.GetOpenAPIPath(ctx))
-	if err != nil {
-		log.Fatal().Err(err).Msg("Error loading OpenAPI spec")
-	}
-
-	log.Info().Str("OpenAPIPath", env.GetOpenAPIPath(ctx)).Msg("Loaded OpenAPI spec")
-
-	// Validate the OpenAPI spec itself
-	err = openAPISpec.Validate(ctx)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Error validating swagger spec")
-	}
-
-	log.Info().Str("OpenAPIPath", env.GetOpenAPIPath(ctx)).Msg("Validated OpenAPISpec")
-
-	// Create router from OpenAPI spec
-	router, err := gorillamux.NewRouter(openAPISpec)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Error creating router")
-	}
-
 	authZMiddleware := authz.NewAuthZ(env.GetAPIKey(ctx))
-
-	// Create Gin router
-	ginMode := gin.DebugMode
-	if !env.IsDevMode() {
-		ginMode = gin.ReleaseMode
-	}
-	gin.SetMode(ginMode)
-	ginRouter := gin.New()
-	ginRouter.Use(gin.Recovery())
-	ginRouter.Use(openapi.ValidationMiddleware(router, authZMiddleware.AuthorizeCaller))
 
 	deploymentServiceRepo, err := repo.NewDeploymentService(repo.DeploymentServieConfig{
 		ServiceFilPath: env.GetSerivceFilePath(ctx),
@@ -215,11 +177,6 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to instantiate background processor")
 	}
 
-	// Validate that top level struct contains all required OpenAPI operation IDs
-	if err = openapi.ValidateStructAndOpenAPI(openAPISpec, deploymentServiceController); err != nil {
-		log.Fatal().Err(err).Msg("Failed to ValidateStructAndOpenAPI")
-	}
-
 	interval, err := env.GetBackgroundProcessingInterval(ctx)
 	if err != nil {
 	}
@@ -235,66 +192,23 @@ func main() {
 		log.Fatal().Err(err).Msg("Errored collecting existing services")
 	}
 
-	ginRouter.Any("/*path", func(c *gin.Context) {
-		log.Info().Interface("request", c.Request).Msg("API Request")
-		startTime := time.Now().UTC()
+	port, err := env.GetPort()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Could not parse port")
+	}
 
-		route, pathParams, err := router.FindRoute(c.Request)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Error finding route: %v", err)})
-			return
-		}
-		log.Info().Interface("route", route).Interface("pathParams", pathParams).Msg("Route and path params")
-
-		firstSuccessfulResponseCode, err := openapi.GetFirstSuccessfulStatusCode(route.Operation.Responses)
-		if err != nil {
-			c.AbortWithStatus(http.StatusInternalServerError)
-			return
-		}
-
-		topLevelStructReflected := reflect.ValueOf(deploymentServiceController)
-		method := topLevelStructReflected.MethodByName(openapi.ConvertOperationIdToPascalCase(route.Operation.OperationID))
-
-		iRequest := irequest.NewRequest(&irequest.RequestConfig{
-			QueryParams: c.Request.URL.Query(),
-			Headers:     c.Request.Header,
-			PathParams:  pathParams,
-			RequestBody: c.Request.Body,
-		})
-
-		values := []reflect.Value{reflect.ValueOf(context.Background()), reflect.ValueOf(iRequest)}
-		result := method.Call(values)
-
-		// All top level methods must either return an error
-		// or a successful response and error
-		var methodResult any
-		switch len(result) {
-		case 1:
-			err, ok := result[0].Interface().(error)
-			if ok {
-				errorHandler(ctx, err, c)
-				return
-			}
-		case 2:
-			methodResult = result[0].Interface()
-			err, ok := result[1].Interface().(error)
-			if ok {
-				errorHandler(ctx, err, c)
-				return
-			}
-		}
-
-		log.Info().Int("status", firstSuccessfulResponseCode).
-			Interface("response", methodResult).TimeDiff("latency", time.Now().UTC(), startTime).
-			Str("httpMethod", route.Method).Str("path", route.Path).
-			Msg("API Response")
-		c.JSON(firstSuccessfulResponseCode, methodResult)
-	})
-
-	port := env.GetPort()
-	log.Info().Str("port", port).Msgf("Server starting on :%s", port)
-	if err := ginRouter.Run(fmt.Sprintf("%s:%s", defaultIPv4OpenAddress, port)); err != nil {
-		log.Fatal().Err(err).Msg("Failed to run gin router")
+	openAPIConfig, err := openapi.NewServeOpenAPIConfig().
+		WithAuthZMiddleware(authZMiddleware).
+		WithIsDevMode(env.IsDevMode()).
+		WithOpenAPISpecFilePath(env.GetOpenAPIPath(ctx)).
+		WithPort(port).
+		WithServiceController(deploymentServiceController).
+		Build()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Couldn't configure server boilerplate")
+	}
+	if err := openapi.ServeOpenAPI(ctx, openAPIConfig); err != nil {
+		log.Fatal().Err(err).Msg("Could not start server")
 	}
 }
 

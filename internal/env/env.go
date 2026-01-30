@@ -4,14 +4,17 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
 )
 
-func GetPort() string {
-	return getOptionalEnvVar("PORT", "5000")
+func GetPort() (uint16, error) {
+	strPort := getOptionalEnvVar("PORT", "5000")
+	port, err := strconv.ParseUint(strPort, 10, 16)
+	return uint16(port), err
 }
 
 func IsDevMode() bool {

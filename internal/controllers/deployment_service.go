@@ -6,8 +6,8 @@ import (
 
 	"github.com/ansonallard/deployment-service/internal/api"
 	"github.com/ansonallard/deployment-service/internal/model"
-	"github.com/ansonallard/deployment-service/internal/request"
 	"github.com/ansonallard/deployment-service/internal/service"
+	"github.com/ansonallard/go_utils/openapi/request"
 )
 
 type DeploymentServiceController interface {

@@ -7,8 +7,8 @@ import (
 	"strconv"
 
 	"github.com/ansonallard/deployment-service/internal/api"
-	"github.com/ansonallard/deployment-service/internal/request"
 	"github.com/ansonallard/deployment-service/internal/utils"
+	"github.com/ansonallard/go_utils/openapi/request"
 )
 
 type Service struct {
