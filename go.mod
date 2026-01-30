@@ -4,7 +4,7 @@ go 1.24.3
 
 require (
 	github.com/Masterminds/semver/v3 v3.4.0
-	github.com/ansonallard/go_utils v0.1.1
+	github.com/ansonallard/go_utils v0.2.0
 	github.com/getkin/kin-openapi v0.133.0
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-git/go-git/v5 v5.16.2

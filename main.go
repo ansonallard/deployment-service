@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"os"
 	"path"
@@ -21,6 +20,7 @@ import (
 	"github.com/ansonallard/deployment-service/internal/repo"
 	"github.com/ansonallard/deployment-service/internal/service"
 	"github.com/ansonallard/deployment-service/internal/version"
+	"github.com/ansonallard/go_utils/logging"
 	"github.com/ansonallard/go_utils/openapi"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -58,7 +58,7 @@ func main() {
 		defer logFile.Close()
 	}
 
-	ctx := zeroLogConfiguration(logFile)
+	ctx := logging.ZeroLogConfiguration(logFile, env.IsDevMode(), serviceName, serviceVersion)
 	log := zerolog.Ctx(ctx)
 
 	log.Info().Msg("Loaded .env file")
@@ -230,34 +230,6 @@ func abortWithStatusResponse(ctx context.Context, code int, err error, c *gin.Co
 	log.Warn().Err(err).Int("status", code).Interface("request", c.Request).Msg("API Response Error")
 
 	c.AbortWithStatusJSON(code, map[string]string{"message": err.Error()})
-}
-
-func zeroLogConfiguration(logFile *os.File) context.Context {
-	if env.IsDevMode() {
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	} else {
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	}
-
-	var writer io.Writer
-	if logFile != nil {
-		writer = io.MultiWriter(os.Stdout, logFile)
-	} else {
-		writer = os.Stdout
-	}
-
-	zerolog.TimeFieldFormat = time.RFC3339Nano
-	logger := zerolog.New(writer).With().
-		Timestamp().
-		Str("serviceName", serviceName).
-		Str("serviceVersion", serviceVersion).
-		Logger()
-
-	ctx := context.Background()
-
-	// Attach the Logger to the context.Context
-	ctx = logger.WithContext(ctx)
-	return ctx
 }
 
 func processBackgroundJob(
