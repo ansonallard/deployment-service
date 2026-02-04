@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"path"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/ansonallard/deployment-service/internal/compose"
 	"github.com/ansonallard/deployment-service/internal/controllers"
 	"github.com/ansonallard/deployment-service/internal/env"
-	"github.com/ansonallard/deployment-service/internal/ierr"
 	"github.com/ansonallard/deployment-service/internal/middleware/authz"
 	"github.com/ansonallard/deployment-service/internal/model"
 	"github.com/ansonallard/deployment-service/internal/releaser"
@@ -22,7 +20,6 @@ import (
 	"github.com/ansonallard/deployment-service/internal/version"
 	"github.com/ansonallard/go_utils/logging"
 	"github.com/ansonallard/go_utils/openapi"
-	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/moby/moby/client"
 	"github.com/rs/zerolog"
@@ -210,26 +207,6 @@ func main() {
 	if err := openapi.ServeOpenAPI(ctx, openAPIConfig); err != nil {
 		log.Fatal().Err(err).Msg("Could not start server")
 	}
-}
-
-func errorHandler(ctx context.Context, err error, c *gin.Context) {
-	switch err.(type) {
-	case *ierr.UnAuthorizedError:
-		abortWithStatusResponse(ctx, http.StatusUnauthorized, err, c)
-	case *ierr.NotFoundError:
-		abortWithStatusResponse(ctx, http.StatusNotFound, err, c)
-	case *ierr.ConflictError:
-		abortWithStatusResponse(ctx, http.StatusConflict, err, c)
-	default:
-		abortWithStatusResponse(ctx, http.StatusInternalServerError, err, c)
-	}
-}
-
-func abortWithStatusResponse(ctx context.Context, code int, err error, c *gin.Context) {
-	log := zerolog.Ctx(ctx)
-	log.Warn().Err(err).Int("status", code).Interface("request", c.Request).Msg("API Response Error")
-
-	c.AbortWithStatusJSON(code, map[string]string{"message": err.Error()})
 }
 
 func processBackgroundJob(
