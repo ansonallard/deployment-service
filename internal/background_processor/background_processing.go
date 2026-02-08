@@ -244,6 +244,7 @@ func (bp *backgroundProcessor) commitChanges(repoPath string, version *semver.Ve
 			Email: bp.ciCommmitAuthor.Email,
 			When:  time.Now(),
 		},
+		AllowEmptyCommits: true,
 	})
 	if err != nil {
 		return err
