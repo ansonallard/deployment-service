@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ansonallard/go_utils/openapi/ierr"
 	rauthz "github.com/ansonallard/go_utils/openapi/middleware/authz"
 
-	"github.com/ansonallard/deployment-service/internal/ierr"
 	"github.com/getkin/kin-openapi/openapi3filter"
 )
 

@@ -7,8 +7,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/ansonallard/deployment-service/internal/ierr"
 	"github.com/ansonallard/deployment-service/internal/model"
+	"github.com/ansonallard/go_utils/openapi/ierr"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
