@@ -19,7 +19,11 @@ paths:
               $ref: "#/components/schemas/CreateServiceRequest"
       responses:
         200:
-          $ref: "#/components/responses/CreateServiceResponse"
+          description: Create Service Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateServiceResponse"
         400:
           $ref: "#/components/responses/BadRequest"
         401:
@@ -43,7 +47,11 @@ paths:
         - $ref: "#/components/parameters/NextTokenInput"
       responses:
         200:
-          $ref: "#/components/responses/ListServicesResponse"
+          description: List Service Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListServicesResponse"
         400:
           $ref: "#/components/responses/BadRequest"
         401:
@@ -66,7 +74,11 @@ paths:
         - $ref: "#/components/parameters/Name"
       responses:
         200:
-          $ref: "#/components/responses/GetServiceResponse"
+          description: Get Service Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetServiceResponse"
         401:
           $ref: "#/components/responses/UnAuthorized"
         403:
@@ -290,11 +302,8 @@ components:
     Version:
       type: string
     NextToken:
-      type: object
+      type: string
       description: Pagination token
-      properties:
-        nextToken:
-          type: string
   parameters:
     ID:
       name: id
@@ -405,30 +414,6 @@ components:
             properties:
               message:
                 type: string
-    CreateServiceResponse:
-      description: Create Service Response
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/CreateServiceResponse"
-      headers:
-        ETag:
-          $ref: "#/components/headers/ETag"
-    GetServiceResponse:
-      description: Get Service Response
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/GetServiceResponse"
-      headers:
-        ETag:
-          $ref: "#/components/headers/ETag"
-    ListServicesResponse:
-      description: List Service Response
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ListServicesResponse"
   headers:
     ETag:
       # required: true

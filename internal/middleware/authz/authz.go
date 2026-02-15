@@ -1,16 +1,22 @@
 package authz
 
 import (
-	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/ansonallard/go_utils/openapi/ierr"
-	rauthz "github.com/ansonallard/go_utils/openapi/middleware/authz"
-
-	"github.com/getkin/kin-openapi/openapi3filter"
+	"github.com/gin-gonic/gin"
 )
 
-func NewAuthZ(apiKey string) rauthz.AuthZ {
+const (
+	apiKeyHeaderKey = "x-api-key"
+)
+
+type AuthZ interface {
+	AuthMiddleware() gin.HandlerFunc
+}
+
+func NewAuthZ(apiKey string) AuthZ {
 	if apiKey == "" {
 		panic("apiKey not set")
 	}
@@ -23,13 +29,20 @@ type authz struct {
 	apiKey string
 }
 
-func (az *authz) AuthorizeCaller(ctx context.Context, ai *openapi3filter.AuthenticationInput) error {
-	apiKey, ok := ai.RequestValidationInput.Request.Header[ai.SecurityScheme.Name]
-	if !ok || len(apiKey) != 1 {
-		return fmt.Errorf("%s not present", ai.SecurityScheme.Name)
+func (az *authz) AuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		apiKey, ok := c.Request.Header[http.CanonicalHeaderKey(apiKeyHeaderKey)]
+		if !ok || len(apiKey) != 1 {
+			c.Error(fmt.Errorf("%s not present", http.CanonicalHeaderKey(apiKeyHeaderKey)))
+			c.Abort()
+			return
+		}
+		if apiKey[0] != az.apiKey {
+			c.Error(&ierr.UnAuthorizedError{})
+			c.Abort()
+			return
+		}
+
+		c.Next()
 	}
-	if apiKey[0] != az.apiKey {
-		return &ierr.UnAuthorizedError{}
-	}
-	return nil
 }

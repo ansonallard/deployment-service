@@ -3,6 +3,7 @@ generate:
   embedded-spec: true
   client: true
   gin-server: true
+  strict-server: true
 output-options:
   response-type-suffix: Resp
 output: internal/api/types.gen.go

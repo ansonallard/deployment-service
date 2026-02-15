@@ -19,6 +19,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gin-gonic/gin"
 	"github.com/oapi-codegen/runtime"
+	strictgin "github.com/oapi-codegen/runtime/strictmiddleware/gin"
 )
 
 const (
@@ -116,9 +117,7 @@ type NPMServiceConfiguration struct {
 type Name = string
 
 // NextToken Pagination token
-type NextToken struct {
-	NextToken *string `json:"nextToken,omitempty"`
-}
+type NextToken = string
 
 // OpenAPIConfiguration defines model for OpenAPIConfiguration.
 type OpenAPIConfiguration struct {
@@ -177,9 +176,6 @@ type ServiceInput struct {
 
 // Services defines model for Services.
 type Services = []Service
-
-// Version defines model for Version.
-type Version = string
 
 // MaxResults defines model for MaxResults.
 type MaxResults = int
@@ -1159,35 +1155,384 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/services/:name", wrapper.GetService)
 }
 
+type BadRequestJSONResponse struct {
+	Message *string `json:"message,omitempty"`
+}
+
+type ConflictJSONResponse struct {
+	Message *string `json:"message,omitempty"`
+}
+
+type ForbiddenJSONResponse struct {
+	Message *string `json:"message,omitempty"`
+}
+
+type InternalServerErrorJSONResponse struct {
+	Message *string `json:"message,omitempty"`
+}
+
+type NotFoundJSONResponse struct {
+	Message *string `json:"message,omitempty"`
+}
+
+type TooManyRequestsJSONResponse struct {
+	Message *string `json:"message,omitempty"`
+}
+
+type UnAuthorizedJSONResponse struct {
+	Message *string `json:"message,omitempty"`
+}
+
+type ListServicesRequestObject struct {
+	Params ListServicesParams
+}
+
+type ListServicesResponseObject interface {
+	VisitListServicesResponse(w http.ResponseWriter) error
+}
+
+type ListServices200JSONResponse ListServicesResponse
+
+func (response ListServices200JSONResponse) VisitListServicesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListServices400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListServices400JSONResponse) VisitListServicesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListServices401JSONResponse struct{ UnAuthorizedJSONResponse }
+
+func (response ListServices401JSONResponse) VisitListServicesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListServices403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListServices403JSONResponse) VisitListServicesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListServices429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response ListServices429JSONResponse) VisitListServicesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListServices5XXJSONResponse struct {
+	Body struct {
+		Message *string `json:"message,omitempty"`
+	}
+	StatusCode int
+}
+
+func (response ListServices5XXJSONResponse) VisitListServicesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type CreateServiceRequestObject struct {
+	Body *CreateServiceJSONRequestBody
+}
+
+type CreateServiceResponseObject interface {
+	VisitCreateServiceResponse(w http.ResponseWriter) error
+}
+
+type CreateService200JSONResponse CreateServiceResponse
+
+func (response CreateService200JSONResponse) VisitCreateServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateService400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateService400JSONResponse) VisitCreateServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateService401JSONResponse struct{ UnAuthorizedJSONResponse }
+
+func (response CreateService401JSONResponse) VisitCreateServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateService403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateService403JSONResponse) VisitCreateServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateService409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateService409JSONResponse) VisitCreateServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateService429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response CreateService429JSONResponse) VisitCreateServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateService5XXJSONResponse struct {
+	Body struct {
+		Message *string `json:"message,omitempty"`
+	}
+	StatusCode int
+}
+
+func (response CreateService5XXJSONResponse) VisitCreateServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type GetServiceRequestObject struct {
+	Name Name `json:"name"`
+}
+
+type GetServiceResponseObject interface {
+	VisitGetServiceResponse(w http.ResponseWriter) error
+}
+
+type GetService200JSONResponse GetServiceResponse
+
+func (response GetService200JSONResponse) VisitGetServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetService401JSONResponse struct{ UnAuthorizedJSONResponse }
+
+func (response GetService401JSONResponse) VisitGetServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetService403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetService403JSONResponse) VisitGetServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetService404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetService404JSONResponse) VisitGetServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetService429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response GetService429JSONResponse) VisitGetServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetService5XXJSONResponse struct {
+	Body struct {
+		Message *string `json:"message,omitempty"`
+	}
+	StatusCode int
+}
+
+func (response GetService5XXJSONResponse) VisitGetServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+// StrictServerInterface represents all server handlers.
+type StrictServerInterface interface {
+
+	// (GET /services)
+	ListServices(ctx context.Context, request ListServicesRequestObject) (ListServicesResponseObject, error)
+
+	// (POST /services)
+	CreateService(ctx context.Context, request CreateServiceRequestObject) (CreateServiceResponseObject, error)
+
+	// (GET /services/{name})
+	GetService(ctx context.Context, request GetServiceRequestObject) (GetServiceResponseObject, error)
+}
+
+type StrictHandlerFunc = strictgin.StrictGinHandlerFunc
+type StrictMiddlewareFunc = strictgin.StrictGinMiddlewareFunc
+
+func NewStrictHandler(ssi StrictServerInterface, middlewares []StrictMiddlewareFunc) ServerInterface {
+	return &strictHandler{ssi: ssi, middlewares: middlewares}
+}
+
+type strictHandler struct {
+	ssi         StrictServerInterface
+	middlewares []StrictMiddlewareFunc
+}
+
+// ListServices operation middleware
+func (sh *strictHandler) ListServices(ctx *gin.Context, params ListServicesParams) {
+	var request ListServicesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ListServices(ctx, request.(ListServicesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListServices")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		ctx.Error(err)
+		ctx.Status(http.StatusInternalServerError)
+	} else if validResponse, ok := response.(ListServicesResponseObject); ok {
+		if err := validResponse.VisitListServicesResponse(ctx.Writer); err != nil {
+			ctx.Error(err)
+		}
+	} else if response != nil {
+		ctx.Error(fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateService operation middleware
+func (sh *strictHandler) CreateService(ctx *gin.Context) {
+	var request CreateServiceRequestObject
+
+	var body CreateServiceJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.Status(http.StatusBadRequest)
+		ctx.Error(err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateService(ctx, request.(CreateServiceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateService")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		ctx.Error(err)
+		ctx.Status(http.StatusInternalServerError)
+	} else if validResponse, ok := response.(CreateServiceResponseObject); ok {
+		if err := validResponse.VisitCreateServiceResponse(ctx.Writer); err != nil {
+			ctx.Error(err)
+		}
+	} else if response != nil {
+		ctx.Error(fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetService operation middleware
+func (sh *strictHandler) GetService(ctx *gin.Context, name Name) {
+	var request GetServiceRequestObject
+
+	request.Name = name
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetService(ctx, request.(GetServiceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetService")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		ctx.Error(err)
+		ctx.Status(http.StatusInternalServerError)
+	} else if validResponse, ok := response.(GetServiceResponseObject); ok {
+		if err := validResponse.VisitGetServiceResponse(ctx.Writer); err != nil {
+			ctx.Error(err)
+		}
+	} else if response != nil {
+		ctx.Error(fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"//+eFT1nEx8AAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

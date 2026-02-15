@@ -3,12 +3,9 @@ package model
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"strconv"
 
 	"github.com/ansonallard/deployment-service/internal/api"
 	"github.com/ansonallard/deployment-service/internal/utils"
-	"github.com/ansonallard/go_utils/openapi/request"
 )
 
 type Service struct {
@@ -62,17 +59,12 @@ type ServieConfiguration struct {
 	EnvVars           map[string]any
 }
 
-func (s *Service) FromCreateRequest(req request.Request) error {
+func (s *Service) FromCreateRequest(dto *api.CreateServiceRequest) error {
 	var err error
-	var servceInputDto api.CreateServiceRequest
-	servceInputDto, err = parseRequestBody[api.CreateServiceRequest](req.GetRequestBody())
-	if err != nil {
-		return err
-	}
-	s.Name.Name = servceInputDto.Service.Name
+	s.Name.Name = dto.Service.Name
 
 	var gitConfigurationOptions api.GitConfigurationOptions
-	if gitConfigurationOptions, err = servceInputDto.Service.Git.AsGitConfigurationOptions(); err != nil {
+	if gitConfigurationOptions, err = dto.Service.Git.AsGitConfigurationOptions(); err != nil {
 		return err
 	}
 
@@ -81,7 +73,7 @@ func (s *Service) FromCreateRequest(req request.Request) error {
 
 	s.ID = utils.GenerateUlidString()
 
-	serviceConfiguration, err := s.generateServiceConfiguration(servceInputDto.Service.Configuration)
+	serviceConfiguration, err := s.generateServiceConfiguration(dto.Service.Configuration)
 	if err != nil {
 		return err
 	}
@@ -184,16 +176,6 @@ func (s *Service) handleOpenApiconfiugration(serviceConfig api.ServiceConfigurat
 	return &internalServiceConfig, nil
 }
 
-func (s *Service) FromGetRequest(req request.Request) error {
-	pathParams := req.GetPathParams()
-	name, ok := pathParams["name"]
-	if !ok {
-		return fmt.Errorf("name not present in path")
-	}
-	s.Name.Name = name
-	return nil
-}
-
 func (s *Service) ToExternal(serviceDto *api.Service) error {
 	serviceDto.Id = s.ID
 	serviceDto.Name = s.Name.Name
@@ -256,32 +238,14 @@ func (s *Service) toOpenApiExternal(serviceDto *api.Service) {
 	})
 }
 
-func parseRequestBody[T any](requestBody io.ReadCloser) (T, error) {
-	defer requestBody.Close()
-
-	var apiModel T
-	rawInput, err := io.ReadAll(requestBody)
-	if err != nil {
-		return apiModel, err
+func FromListRequest(params api.ListServicesParams) (maxResults int, nextToken string) {
+	maxResults = 100
+	nextToken = ""
+	if params.MaxResults != nil {
+		maxResults = *params.MaxResults
 	}
-
-	if err := json.Unmarshal(rawInput, &apiModel); err != nil {
-		return apiModel, err
+	if params.NextToken != nil {
+		nextToken = *params.NextToken
 	}
-	return apiModel, nil
-}
-
-func FromListRequest(req request.Request) (maxResults int, nextToken string, err error) {
-	queryParams := req.GetQueryParams()
-	maxResultsList := queryParams["max_results"]
-	nextTokenList := queryParams["next_token"]
-	if len(nextTokenList) == 1 {
-		nextToken = nextTokenList[0]
-	}
-	maxResult, err := strconv.ParseInt(maxResultsList[0], 10, 32)
-	if err != nil {
-		return 0, "", err
-	}
-	return int(maxResult), nextToken, nil
-
+	return maxResults, nextToken
 }
