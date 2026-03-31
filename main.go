@@ -9,6 +9,7 @@ import (
 
 	"github.com/ansonallard/deployment-service/internal/api"
 	backgroundprocessor "github.com/ansonallard/deployment-service/internal/background_processor"
+	"github.com/ansonallard/deployment-service/internal/background_processor/goservice"
 	"github.com/ansonallard/deployment-service/internal/background_processor/npm"
 	openapiBp "github.com/ansonallard/deployment-service/internal/background_processor/openapi"
 	"github.com/ansonallard/deployment-service/internal/compose"
@@ -161,6 +162,15 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to instantiate openapi processor")
 	}
 
+	goServiceProcessor, err := goservice.NewGoServiceProcessor(goservice.GoServiceProcessorConfig{
+		DockerReleaser: dockerReleaser,
+		GoUser:         env.GetGoUser(ctx),
+		GoPAT:          env.GetGoPAT(ctx),
+	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to instantiate go service processor")
+	}
+
 	backgroundProcessor, err := backgroundprocessor.NewBackgroundProcessor(backgroundprocessor.BackgroundProcessorConfig{
 		Versioner:     versioner,
 		SSHKeyPath:    env.GetSSHKeyPath(ctx),
@@ -171,6 +181,7 @@ func main() {
 		},
 		NpmServiceProcessor: npmServiceProcessor,
 		OpenAPIProcessor:    openAPIProcessor,
+		GoServiceProcessor:  goServiceProcessor,
 		IsDev:               env.IsDevMode(),
 	})
 	if err != nil {

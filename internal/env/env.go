@@ -89,6 +89,14 @@ func GetNPMPackageScope(ctx context.Context) string {
 	return getRequiredEnvVar(ctx, "NPM_PACKAGE_SCOPE")
 }
 
+func GetGoUser(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "GO_USER")
+}
+
+func GetGoPAT(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "GO_PAT")
+}
+
 func GetNPMRCPath(ctx context.Context) string {
 	return getRequiredEnvVar(ctx, "NPMRC_PATH")
 }

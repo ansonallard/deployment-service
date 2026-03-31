@@ -150,7 +150,7 @@ components:
       oneOf:
         - $ref: "#/components/schemas/NPMConfiguration"
         - $ref: "#/components/schemas/OpenAPIConfiguration"
-      # - $ref: "#/components/schemas/GoConfiguration"
+        - $ref: "#/components/schemas/GoConfiguration"
       # - $ref: "#/components/schemas/NginxConfiguration"
     NPMConfiguration:
       type: object
@@ -212,6 +212,26 @@ components:
     NPMLibraryConfiguration:
       type: object
     GoConfiguration:
+      type: object
+      additionalProperties: false
+      required:
+        - go
+      properties:
+        go:
+          $ref: "#/components/schemas/GoConfigurationChoices"
+    GoConfigurationChoices:
+      type: object
+      oneOf:
+        - $ref: "#/components/schemas/GoService"
+    GoService:
+      type: object
+      additionalProperties: false
+      required:
+        - service
+      properties:
+        service:
+          $ref: "#/components/schemas/GoServiceConfiguration"
+    GoServiceConfiguration:
       type: object
       additionalProperties: false
     OpenAPIConfiguration:

@@ -24,6 +24,7 @@ type Name struct {
 type ServiceConfiguration struct {
 	Npm     *NpmConfiguration
 	OpenAPI *OpenAPIConfiguration
+	Go      *GoConfiguration
 }
 
 type OpenAPIConfiguration struct {
@@ -47,6 +48,12 @@ type GoClient struct {
 type NpmConfiguration struct {
 	Service *NpmServiceConfiguration
 }
+
+type GoConfiguration struct {
+	Service *GoServiceConfiguration
+}
+
+type GoServiceConfiguration struct{}
 
 type NpmServiceConfiguration struct {
 	ServieConfiguration
@@ -96,6 +103,17 @@ func (s *Service) generateServiceConfiguration(serviceConfig api.ServiceConfigur
 	}
 
 	serviceConfigModel, err = s.handleOpenApiconfiugration(serviceConfig)
+	if err != nil {
+		if _, ok := err.(*unionMemberNotPresent); !ok {
+			return nil, err
+		}
+		// If the error type was unionMemberNotPresent, then we continue to the next option
+	}
+	if serviceConfigModel != nil {
+		return serviceConfigModel, nil
+	}
+
+	serviceConfigModel, err = s.handleGoConfiguration(serviceConfig)
 	if err != nil {
 		if _, ok := err.(*unionMemberNotPresent); !ok {
 			return nil, err
@@ -176,6 +194,31 @@ func (s *Service) handleOpenApiconfiugration(serviceConfig api.ServiceConfigurat
 	return &internalServiceConfig, nil
 }
 
+func (s *Service) handleGoConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+	var err error
+	var goConfigurationDto api.GoConfiguration
+
+	if goConfigurationDto, err = serviceConfig.AsGoConfiguration(); err != nil {
+		if _, ok := err.(*json.SyntaxError); ok {
+			return nil, &unionMemberNotPresent{}
+		}
+		return nil, err
+	}
+
+	if _, err = goConfigurationDto.Go.AsGoService(); err != nil {
+		if _, ok := err.(*json.SyntaxError); ok {
+			return nil, &unionMemberNotPresent{}
+		}
+		return nil, err
+	}
+
+	return &ServiceConfiguration{
+		Go: &GoConfiguration{
+			Service: &GoServiceConfiguration{},
+		},
+	}, nil
+}
+
 func (s *Service) ToExternal(serviceDto *api.Service) error {
 	serviceDto.Id = s.ID
 	serviceDto.Name = s.Name.Name
@@ -192,6 +235,8 @@ func (s *Service) ToExternal(serviceDto *api.Service) error {
 		s.toNpmExternal(serviceDto)
 	case s.Configuration.OpenAPI != nil:
 		s.toOpenApiExternal(serviceDto)
+	case s.Configuration.Go != nil:
+		s.toGoExternal(serviceDto)
 	default:
 		return fmt.Errorf("invalid service configuration")
 	}
@@ -235,6 +280,17 @@ func (s *Service) toOpenApiExternal(serviceDto *api.Service) {
 	serviceDto.Configuration = api.ServiceConfiguration{}
 	serviceDto.Configuration.FromOpenAPIConfiguration(api.OpenAPIConfiguration{
 		Openapi: openapiConfig,
+	})
+}
+
+func (s *Service) toGoExternal(serviceDto *api.Service) {
+	goConfiguration := api.GoConfigurationChoices{}
+	goConfiguration.FromGoService(api.GoService{
+		Service: api.GoServiceConfiguration{},
+	})
+	serviceDto.Configuration = api.ServiceConfiguration{}
+	serviceDto.Configuration.FromGoConfiguration(api.GoConfiguration{
+		Go: goConfiguration,
 	})
 }
 

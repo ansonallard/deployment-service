@@ -67,6 +67,24 @@ type GitConfigurationOptions struct {
 	SshUrl     SSHUrl     `json:"sshUrl"`
 }
 
+// GoConfiguration defines model for GoConfiguration.
+type GoConfiguration struct {
+	Go GoConfigurationChoices `json:"go"`
+}
+
+// GoConfigurationChoices defines model for GoConfigurationChoices.
+type GoConfigurationChoices struct {
+	union json.RawMessage
+}
+
+// GoService defines model for GoService.
+type GoService struct {
+	Service GoServiceConfiguration `json:"service"`
+}
+
+// GoServiceConfiguration defines model for GoServiceConfiguration.
+type GoServiceConfiguration = map[string]interface{}
+
 // ID Resource ID - ULID
 type ID = string
 
@@ -266,6 +284,42 @@ func (t *GitConfiguration) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsGoService returns the union data inside the GoConfigurationChoices as a GoService
+func (t GoConfigurationChoices) AsGoService() (GoService, error) {
+	var body GoService
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGoService overwrites any union data inside the GoConfigurationChoices as the provided GoService
+func (t *GoConfigurationChoices) FromGoService(v GoService) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeGoService performs a merge with any union data inside the GoConfigurationChoices, using the provided GoService
+func (t *GoConfigurationChoices) MergeGoService(v GoService) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t GoConfigurationChoices) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *GoConfigurationChoices) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsNPMService returns the union data inside the NPMConfigurationChoices as a NPMService
 func (t NPMConfigurationChoices) AsNPMService() (NPMService, error) {
 	var body NPMService
@@ -370,6 +424,32 @@ func (t *ServiceConfiguration) FromOpenAPIConfiguration(v OpenAPIConfiguration) 
 
 // MergeOpenAPIConfiguration performs a merge with any union data inside the ServiceConfiguration, using the provided OpenAPIConfiguration
 func (t *ServiceConfiguration) MergeOpenAPIConfiguration(v OpenAPIConfiguration) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsGoConfiguration returns the union data inside the ServiceConfiguration as a GoConfiguration
+func (t ServiceConfiguration) AsGoConfiguration() (GoConfiguration, error) {
+	var body GoConfiguration
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGoConfiguration overwrites any union data inside the ServiceConfiguration as the provided GoConfiguration
+func (t *ServiceConfiguration) FromGoConfiguration(v GoConfiguration) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeGoConfiguration performs a merge with any union data inside the ServiceConfiguration, using the provided GoConfiguration
+func (t *ServiceConfiguration) MergeGoConfiguration(v GoConfiguration) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -1508,31 +1588,31 @@ func (sh *strictHandler) GetService(ctx *gin.Context, name Name) {
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"//+eFT1nEx8AAA==",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

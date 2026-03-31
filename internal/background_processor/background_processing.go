@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/ansonallard/deployment-service/internal/background_processor/goservice"
 	"github.com/ansonallard/deployment-service/internal/background_processor/npm"
 	"github.com/ansonallard/deployment-service/internal/background_processor/openapi"
 	"github.com/ansonallard/deployment-service/internal/model"
@@ -35,6 +36,7 @@ type BackgroundProcessorConfig struct {
 	CiCommitAuthor      *CiCommitAuthor
 	NpmServiceProcessor npm.NPMServiceProcessor
 	OpenAPIProcessor    openapi.OpenAPIProcessor
+	GoServiceProcessor  goservice.GoServiceProcessor
 	IsDev               bool
 }
 
@@ -66,6 +68,9 @@ func NewBackgroundProcessor(config BackgroundProcessorConfig) (BackgroundProcess
 	if config.OpenAPIProcessor == nil {
 		return nil, fmt.Errorf("openAPIProcessor not provided")
 	}
+	if config.GoServiceProcessor == nil {
+		return nil, fmt.Errorf("goServiceProcessor not provided")
+	}
 
 	return &backgroundProcessor{
 			versioner:           *config.Versioner,
@@ -74,6 +79,7 @@ func NewBackgroundProcessor(config BackgroundProcessorConfig) (BackgroundProcess
 			ciCommmitAuthor:     config.CiCommitAuthor,
 			npmServiceProcessor: config.NpmServiceProcessor,
 			openAPIProcessor:    config.OpenAPIProcessor,
+			goServiceProcessor:  config.GoServiceProcessor,
 			isDevMode:           config.IsDev,
 		},
 		nil
@@ -86,6 +92,7 @@ type backgroundProcessor struct {
 	ciCommmitAuthor     *CiCommitAuthor
 	npmServiceProcessor npm.NPMServiceProcessor
 	openAPIProcessor    openapi.OpenAPIProcessor
+	goServiceProcessor  goservice.GoServiceProcessor
 	isDevMode           bool
 }
 
@@ -118,6 +125,11 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 		if err := bp.openAPIProcessor.SetOpenApiYamlVersion(service, nextVersion); err != nil {
 			return err
 		}
+	case serviceConfiguration.Go != nil:
+		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Go Service")
+		if err := bp.goServiceProcessor.SetVersionFile(service, nextVersion); err != nil {
+			return err
+		}
 	}
 
 	if !bp.isDevMode {
@@ -145,6 +157,15 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 
 		if err := bp.openAPIProcessor.BuildAndDeployOpenAPIClient(ctx, service, nextVersion); err != nil {
 			return fmt.Errorf("failed to build and deploy OpenAPI npm client: %w", err)
+		}
+	case serviceConfiguration.Go != nil:
+		log.Info().
+			Str("service", service.Name.Name).
+			Str("nextVersion", nextVersion.String()).
+			Msg("Building Go service")
+
+		if err := bp.goServiceProcessor.BuildGoService(ctx, service, nextVersion); err != nil {
+			return fmt.Errorf("failed to build Go service: %w", err)
 		}
 	}
 
