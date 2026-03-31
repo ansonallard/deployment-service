@@ -15,6 +15,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
+var baseSemVerVersion = semver.New(0, 0, 1, "", "")
+
 // Versioner holds state for calculating next semantic version
 type Versioner struct {
 }
@@ -94,7 +96,7 @@ func (v *Versioner) CalculateNextVersion(ctx context.Context, repoPath string) (
 	}
 
 	if latestTag == "" {
-		return nil, fmt.Errorf("no semver tag found")
+		return baseSemVerVersion, nil
 	}
 
 	latestSemver, err := semver.NewVersion(latestTag)
