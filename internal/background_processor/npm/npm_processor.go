@@ -98,7 +98,6 @@ func (nsp *npmServiceProcessor) BuildAndDeployNpmService(
 		service.GitRepoFilePath,
 		service.Configuration.Npm.Service.DockerfilePath,
 		[]string{
-			nsp.dockerReleaser.FullyQualifiedImageTag(service.Name.Name, nextVersion),
 			nsp.dockerReleaser.CreateArtifactTag(service.Name.Name, nextVersion),
 		},
 		map[string][]byte{
