@@ -48,7 +48,7 @@ func (v *Versioner) CalculateNextVersion(ctx context.Context, repoPath string) (
 		return nil, fmt.Errorf("failed to get log: %w", err)
 	}
 
-	commitRegex := regexp.MustCompile(`^(fix|feat|chore|docs|ci)(!?)`)
+	commitRegex := regexp.MustCompile(`^(fix|feat|chore|docs|ci|)(!?)|Initial Commit`)
 	semverRegex := regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)$`)
 
 	var latestTag string
