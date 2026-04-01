@@ -93,13 +93,16 @@ func (nsp *npmServiceProcessor) BuildAndDeployNpmService(
 	ctx context.Context, service *model.Service, nextVersion *semver.Version,
 ) error {
 	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Building image")
+
+	tags := []string{
+		nsp.dockerReleaser.CreateArtifactTag(service.Name.Name, nextVersion),
+		nsp.dockerReleaser.CreateLatestArtifactTag(service.Name.Name),
+	}
 	if err := nsp.dockerReleaser.BuildImageWithSecrets(
 		ctx,
 		service.GitRepoFilePath,
 		service.Configuration.Npm.Service.DockerfilePath,
-		[]string{
-			nsp.dockerReleaser.CreateArtifactTag(service.Name.Name, nextVersion),
-		},
+		tags,
 		map[string][]byte{
 			releaser.NpmrcSecretKey: nsp.npmrcData,
 		},
@@ -107,12 +110,10 @@ func (nsp *npmServiceProcessor) BuildAndDeployNpmService(
 		return err
 	}
 
-	if err := nsp.dockerReleaser.PushImage(ctx, service.Name.Name, nsp.dockerReleaser.CreateArtifactTag(service.Name.Name, nextVersion)); err != nil {
-		return err
-	}
-
-	if err := nsp.dockerReleaser.PushImage(ctx, service.Name.Name, nsp.dockerReleaser.CreateLatestArtifactTag(service.Name.Name)); err != nil {
-		return err
+	for _, tag := range tags {
+		if err := nsp.dockerReleaser.PushImage(ctx, service.Name.Name, tag); err != nil {
+			return err
+		}
 	}
 
 	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Writing env vars")
