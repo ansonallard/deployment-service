@@ -107,7 +107,11 @@ func (nsp *npmServiceProcessor) BuildAndDeployNpmService(
 		return err
 	}
 
-	if err := nsp.dockerReleaser.PushImage(ctx, service.Name.Name, nextVersion); err != nil {
+	if err := nsp.dockerReleaser.PushImage(ctx, service.Name.Name, nsp.dockerReleaser.CreateArtifactTag(service.Name.Name, nextVersion)); err != nil {
+		return err
+	}
+
+	if err := nsp.dockerReleaser.PushImage(ctx, service.Name.Name, nsp.dockerReleaser.CreateLatestArtifactTag(service.Name.Name)); err != nil {
 		return err
 	}
 

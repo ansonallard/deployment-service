@@ -92,7 +92,11 @@ func (gsp *goServiceProcessor) BuildGoService(
 		return err
 	}
 
-	if err := gsp.dockerReleaser.PushImage(ctx, service.Name.Name, nextVersion); err != nil {
+	if err := gsp.dockerReleaser.PushImage(ctx, service.Name.Name, gsp.dockerReleaser.CreateArtifactTag(service.Name.Name, nextVersion)); err != nil {
+		return err
+	}
+
+	if err := gsp.dockerReleaser.PushImage(ctx, service.Name.Name, gsp.dockerReleaser.CreateLatestArtifactTag(service.Name.Name)); err != nil {
 		return err
 	}
 

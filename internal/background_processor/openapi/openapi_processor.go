@@ -575,7 +575,7 @@ func (op *openAPIProcessor) buildGoClientDocker(
 }
 
 func (op *openAPIProcessor) generateOpenAPIDockerFullyQualifiedImageName(imageName string, version *semver.Version) string {
-	return op.dockerReleaser.FullyQualifiedImageTag(imageName, version)
+	return op.dockerReleaser.CreateArtifactTag(imageName, version)
 }
 
 func generateBuildID() string {

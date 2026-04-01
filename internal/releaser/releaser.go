@@ -21,13 +21,15 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const LatestTag = "latest"
+
 type DockerReleaser interface {
 	BuildImage(ctx context.Context, repositoryPath, dockerfilePath string, tags []string) error
 	BuildImageWithSecrets(ctx context.Context, repositoryPath, dockerfilePath string, tags []string, secrets map[string][]byte) error
-	PushImage(ctx context.Context, serviceName string, version *semver.Version) error
+	PushImage(ctx context.Context, serviceName string, tag string) error
 	RemoveImage(ctx context.Context, tag string) error
-	FullyQualifiedImageTag(imageName string, version *semver.Version) string
 	CreateArtifactTag(serviceName string, version *semver.Version) string
+	CreateLatestArtifactTag(serviceName string) string
 }
 
 type DockerAuth struct {
@@ -253,14 +255,12 @@ func CreateTar(dir string) (io.ReadCloser, error) {
 }
 
 // PushImage pushes the built Docker image to the registry.
-func (r *dockerReleaser) PushImage(ctx context.Context, serviceName string, version *semver.Version) error {
+func (r *dockerReleaser) PushImage(ctx context.Context, serviceName string, tag string) error {
 	log := zerolog.Ctx(ctx)
 
-	remoteImageTag := r.CreateArtifactTag(serviceName, version)
 	log.Info().
 		Str("service", serviceName).
-		Str("nextVersion", version.String()).
-		Str("remoteImageTag", remoteImageTag).
+		Str("tag", tag).
 		Msg("Pushing image")
 
 	authConfig := registry.AuthConfig{
@@ -275,7 +275,7 @@ func (r *dockerReleaser) PushImage(ctx context.Context, serviceName string, vers
 	}
 
 	// Push the image
-	response, err := r.dockerclient.ImagePush(ctx, remoteImageTag, client.ImagePushOptions{
+	response, err := r.dockerclient.ImagePush(ctx, tag, client.ImagePushOptions{
 		RegistryAuth: base64.StdEncoding.EncodeToString(authJSON),
 	})
 	if err != nil {
@@ -289,7 +289,7 @@ func (r *dockerReleaser) PushImage(ctx context.Context, serviceName string, vers
 		line := scanner.Text()
 		log.Info().
 			Str("service", serviceName).
-			Str("version", version.String()).
+			Str("tag", tag).
 			Str("imagePushOutput", line).
 			Msg("Image push progress")
 	}
@@ -300,7 +300,7 @@ func (r *dockerReleaser) PushImage(ctx context.Context, serviceName string, vers
 
 	log.Info().
 		Str("service", serviceName).
-		Str("version", version.String()).
+		Str("tag", tag).
 		Msg("Image push completed")
 
 	return nil
@@ -329,10 +329,10 @@ func (r *dockerReleaser) RemoveImage(ctx context.Context, tag string) error {
 	return nil
 }
 
-func (r *dockerReleaser) FullyQualifiedImageTag(imageName string, version *semver.Version) string {
-	return fmt.Sprintf("%s:%s", imageName, version.String())
+func (r *dockerReleaser) CreateArtifactTag(serviceName string, version *semver.Version) string {
+	return fmt.Sprintf("%s/%s:%s", r.artifactPrefix, serviceName, version.String())
 }
 
-func (r *dockerReleaser) CreateArtifactTag(serviceName string, version *semver.Version) string {
-	return fmt.Sprintf("%s/%s", r.artifactPrefix, r.FullyQualifiedImageTag(serviceName, version))
+func (r *dockerReleaser) CreateLatestArtifactTag(serviceName string) string {
+	return fmt.Sprintf("%s/%s:%s", r.artifactPrefix, serviceName, LatestTag)
 }
