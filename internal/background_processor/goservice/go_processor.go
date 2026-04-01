@@ -82,7 +82,7 @@ func (gsp *goServiceProcessor) BuildGoService(
 		service.GitRepoFilePath,
 		"Dockerfile",
 		[]string{
-			gsp.dockerReleaser.FullyQualifiedImageTag(service.Name.Name, nextVersion),
+			gsp.dockerReleaser.CreateArtifactTag(service.Name.Name, nextVersion),
 		},
 		map[string][]byte{
 			releaser.GoUserKey: []byte(gsp.goUser),
