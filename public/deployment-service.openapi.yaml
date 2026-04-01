@@ -251,6 +251,7 @@ components:
         yamlFile:
           type: string
           description: Absolute path to openapi definition in yaml format
+          minLength: 1
         typescriptClient:
           $ref: "#/components/schemas/OpenAPITypescriptClientConfig"
         goClient:

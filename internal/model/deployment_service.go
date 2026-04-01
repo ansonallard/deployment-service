@@ -168,6 +168,11 @@ func (s *Service) handleOpenApiconfiugration(serviceConfig api.ServiceConfigurat
 		return nil, err
 	}
 
+	// FIXME: yamlfilepath is a required property, and if it's not set, then we didn't have this type
+	if len(openapiConfigurationDto.Openapi.YamlFile) == 0 {
+		return nil, &unionMemberNotPresent{}
+	}
+
 	internalServiceConfig := ServiceConfiguration{
 		OpenAPI: &OpenAPIConfiguration{
 			OpenAPI: &OpenAPIServiceConfiguration{
