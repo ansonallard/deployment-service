@@ -1,4 +1,5 @@
 .env
-deployment-service
 service-data/
 tmp
+deployment-service
+!deployment-service/

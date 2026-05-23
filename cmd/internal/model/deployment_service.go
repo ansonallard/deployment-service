@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ansonallard/deployment-service/internal/api"
-	"github.com/ansonallard/deployment-service/internal/utils"
+	"github.com/ansonallard/deployment-service/cmd/internal/api"
+	"github.com/ansonallard/deployment-service/cmd/internal/utils"
 )
 
 type Service struct {

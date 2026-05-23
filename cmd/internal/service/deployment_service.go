@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ansonallard/deployment-service/internal/model"
-	"github.com/ansonallard/deployment-service/internal/repo"
+	"github.com/ansonallard/deployment-service/cmd/internal/model"
+	"github.com/ansonallard/deployment-service/cmd/internal/repo"
 	"github.com/ansonallard/go_utils/openapi/ierr"
 	"github.com/rs/zerolog"
 )

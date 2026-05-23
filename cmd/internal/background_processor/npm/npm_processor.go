@@ -7,10 +7,10 @@ import (
 	"path"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/ansonallard/deployment-service/internal/compose"
-	"github.com/ansonallard/deployment-service/internal/model"
-	"github.com/ansonallard/deployment-service/internal/releaser"
-	"github.com/ansonallard/deployment-service/internal/service"
+	"github.com/ansonallard/deployment-service/cmd/internal/compose"
+	"github.com/ansonallard/deployment-service/cmd/internal/model"
+	"github.com/ansonallard/deployment-service/cmd/internal/releaser"
+	"github.com/ansonallard/deployment-service/cmd/internal/service"
 	"github.com/rs/zerolog/log"
 	"github.com/tidwall/sjson"
 )

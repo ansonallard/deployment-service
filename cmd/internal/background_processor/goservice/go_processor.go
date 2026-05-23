@@ -7,9 +7,9 @@ import (
 	"path"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/ansonallard/deployment-service/internal/model"
-	"github.com/ansonallard/deployment-service/internal/releaser"
-	goservicetemplate "github.com/ansonallard/deployment-service/internal/templates/go_service"
+	"github.com/ansonallard/deployment-service/cmd/internal/model"
+	"github.com/ansonallard/deployment-service/cmd/internal/releaser"
+	goservicetemplate "github.com/ansonallard/deployment-service/cmd/internal/templates/go_service"
 	"github.com/rs/zerolog/log"
 )
 

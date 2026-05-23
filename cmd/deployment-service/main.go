@@ -1,4 +1,4 @@
-package main
+package deployment_service
 
 import (
 	"context"
@@ -7,21 +7,22 @@ import (
 	"path"
 	"time"
 
-	"github.com/ansonallard/deployment-service/internal/api"
-	backgroundprocessor "github.com/ansonallard/deployment-service/internal/background_processor"
-	"github.com/ansonallard/deployment-service/internal/background_processor/goservice"
-	"github.com/ansonallard/deployment-service/internal/background_processor/npm"
-	openapiBp "github.com/ansonallard/deployment-service/internal/background_processor/openapi"
-	"github.com/ansonallard/deployment-service/internal/compose"
-	"github.com/ansonallard/deployment-service/internal/controllers"
-	"github.com/ansonallard/deployment-service/internal/env"
-	"github.com/ansonallard/deployment-service/internal/middleware"
-	"github.com/ansonallard/deployment-service/internal/middleware/authz"
-	"github.com/ansonallard/deployment-service/internal/model"
-	"github.com/ansonallard/deployment-service/internal/releaser"
-	"github.com/ansonallard/deployment-service/internal/repo"
-	"github.com/ansonallard/deployment-service/internal/service"
-	"github.com/ansonallard/deployment-service/internal/version"
+	"github.com/ansonallard/deployment-service/cmd/internal/api"
+	backgroundprocessor "github.com/ansonallard/deployment-service/cmd/internal/background_processor"
+	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/goservice"
+	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/npm"
+	openapiBp "github.com/ansonallard/deployment-service/cmd/internal/background_processor/openapi"
+	"github.com/ansonallard/deployment-service/cmd/internal/compose"
+	"github.com/ansonallard/deployment-service/cmd/internal/controllers"
+	"github.com/ansonallard/deployment-service/cmd/internal/env"
+	"github.com/ansonallard/deployment-service/cmd/internal/middleware"
+	"github.com/ansonallard/deployment-service/cmd/internal/middleware/authz"
+	"github.com/ansonallard/deployment-service/cmd/internal/model"
+	"github.com/ansonallard/deployment-service/cmd/internal/releaser"
+	"github.com/ansonallard/deployment-service/cmd/internal/repo"
+	"github.com/ansonallard/deployment-service/cmd/internal/service"
+	"github.com/ansonallard/deployment-service/cmd/internal/version"
+	"github.com/ansonallard/deployment-service/cmd/service_version"
 	"github.com/ansonallard/go_utils/logging"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -59,7 +60,7 @@ func main() {
 		defer logFile.Close()
 	}
 
-	ctx := logging.ZeroLogConfiguration(logFile, env.IsDevMode(), serviceName, serviceVersion)
+	ctx := logging.ZeroLogConfiguration(logFile, env.IsDevMode(), serviceName, service_version.ServiceVersion)
 	log := zerolog.Ctx(ctx)
 
 	log.Info().Msg("Loaded .env file")

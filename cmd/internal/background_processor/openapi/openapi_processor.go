@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/ansonallard/deployment-service/internal/model"
-	"github.com/ansonallard/deployment-service/internal/releaser"
-	goclient "github.com/ansonallard/deployment-service/internal/templates/go_client"
-	typescriptclient "github.com/ansonallard/deployment-service/internal/templates/typescript_client"
+	"github.com/ansonallard/deployment-service/cmd/internal/model"
+	"github.com/ansonallard/deployment-service/cmd/internal/releaser"
+	goclient "github.com/ansonallard/deployment-service/cmd/internal/templates/go_client"
+	typescriptclient "github.com/ansonallard/deployment-service/cmd/internal/templates/typescript_client"
 	yaml "github.com/oasdiff/yaml3"
 	"github.com/rs/zerolog"
 )

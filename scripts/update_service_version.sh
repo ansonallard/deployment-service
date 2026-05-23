@@ -17,18 +17,16 @@ NEXT_VERSION=$(./scripts/calculate_next_version.sh -r $REPOSITORY_PATH)
 BRANCH_NAME=$(git branch --show-current)
 
 # Check if version.go exists
-if [[ ! -f "version.go" ]]; then
-    echo "Error: version.go not found in current directory" >&2
+VERSION_FILE=$(find "$PWD"  -name version.txt)
+
+if [[ -z $VERSION_FILE ]]; then
+    echo "Error: could not find 'version.txt' in project directory." >&2
     exit 1
 fi
 
 echo "Updating service version to $NEXT_VERSION..." >&2
 
-# Update version.go with the new version
-sed -i.bak "s/serviceVersion = \".*\"/serviceVersion = \"$NEXT_VERSION\"/" version.go
-
-# Remove backup file created by sed
-rm -f version.go.bak
+echo $NEXT_VERSION > $VERSION_FILE
 
 if [ "$DRY_RUN" = true ]; then
     echo "[DRY RUN] Would execute: git commit --allow-empty -m \"ci: Release version $NEXT_VERSION\""
@@ -37,7 +35,7 @@ if [ "$DRY_RUN" = true ]; then
     echo "[DRY RUN] Would execute: git push -u origin --tags"
 else
     # Add the change to git
-    git add version.go
+    git add "$VERSION_FILE"
     git commit --allow-empty -m "ci: Release version $NEXT_VERSION"
     git tag -a "$NEXT_VERSION" -m "Release $NEXT_VERSION"
     git push -u origin "$BRANCH_NAME"
