@@ -3,8 +3,10 @@ package goservice
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/ansonallard/deployment-service/cmd/internal/model"
@@ -53,7 +55,24 @@ func NewGoServiceProcessor(config GoServiceProcessorConfig) (GoServiceProcessor,
 }
 
 func (gsp *goServiceProcessor) SetVersionFile(service *model.Service, version *semver.Version) error {
-	versionFilePath := path.Join(service.GitRepoFilePath, versionFileName)
+	var versionFilePath string
+	err := filepath.WalkDir(service.GitRepoFilePath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && d.Name() == versionFileName {
+			versionFilePath = path
+			return fs.SkipAll // stop walking once found
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to find version file: %w", err)
+	}
+	if versionFilePath == "" {
+		return fmt.Errorf("version file %q not found in %q", versionFileName, service.GitRepoFilePath)
+	}
+
 	if err := os.WriteFile(versionFilePath, []byte(version.String()), 0644); err != nil {
 		return fmt.Errorf("failed to write version file: %w", err)
 	}
