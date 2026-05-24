@@ -26,7 +26,7 @@ fi
 
 echo "Updating service version to $NEXT_VERSION..." >&2
 
-echo $NEXT_VERSION > $VERSION_FILE
+echo -n $NEXT_VERSION > $VERSION_FILE
 
 if [ "$DRY_RUN" = true ]; then
     echo "[DRY RUN] Would execute: git commit --allow-empty -m \"ci: Release version $NEXT_VERSION\""
