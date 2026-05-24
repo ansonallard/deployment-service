@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/utils"
 	"github.com/ansonallard/deployment-service/cmd/internal/model"
 	"github.com/ansonallard/deployment-service/cmd/internal/releaser"
 	goservicetemplate "github.com/ansonallard/deployment-service/cmd/internal/templates/go_service"
@@ -81,8 +82,15 @@ func (gsp *goServiceProcessor) SetVersionFile(service *model.Service, version *s
 
 func (gsp *goServiceProcessor) writeDockerfile(service *model.Service) error {
 	dockerfilePath := path.Join(service.GitRepoFilePath, dockerfileName)
-	if err := os.WriteFile(dockerfilePath, []byte(goservicetemplate.Dockerfile), 0644); err != nil {
-		return fmt.Errorf("failed to write Dockerfile: %w", err)
+	serviceBindaryDir := "."
+	if service.Configuration.Go.Service.BinaryDirectory != "" {
+		serviceBindaryDir = service.Configuration.Go.Service.BinaryDirectory
+	}
+	templateData := map[string]string{
+		"ServiceBinaryDir": serviceBindaryDir,
+	}
+	if err := utils.GenerateFileFromTemplate(dockerfilePath, goservicetemplate.Dockerfile, templateData); err != nil {
+		return err
 	}
 	return nil
 }

@@ -6,5 +6,5 @@ generate:
   strict-server: true
 output-options:
   response-type-suffix: Resp
-output: internal/api/types.gen.go
+output: types.gen.go
 package: api

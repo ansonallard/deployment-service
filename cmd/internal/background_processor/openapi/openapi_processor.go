@@ -1,7 +1,6 @@
 package openapi
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -9,10 +8,10 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/utils"
 	"github.com/ansonallard/deployment-service/cmd/internal/model"
 	"github.com/ansonallard/deployment-service/cmd/internal/releaser"
 	goclient "github.com/ansonallard/deployment-service/cmd/internal/templates/go_client"
@@ -358,7 +357,7 @@ func (op *openAPIProcessor) generateTypescriptClientConfigFiles(
 	}
 
 	// Generate package.json
-	if err := op.generateFileFromTemplate(
+	if err := utils.GenerateFileFromTemplate(
 		filepath.Join(buildDir, "package.json"),
 		typescriptclient.PackageJSONTemplate,
 		templateData,
@@ -367,7 +366,7 @@ func (op *openAPIProcessor) generateTypescriptClientConfigFiles(
 	}
 
 	// Generate openapi-ts.config.ts
-	if err := op.generateFileFromTemplate(
+	if err := utils.GenerateFileFromTemplate(
 		filepath.Join(buildDir, "openapi-ts.config.ts"),
 		typescriptclient.OpenapiConfigTemplate,
 		templateData,
@@ -385,7 +384,7 @@ func (op *openAPIProcessor) generateTypescriptClientConfigFiles(
 	}
 
 	// Write Dockerfile
-	if err := op.generateFileFromTemplate(
+	if err := utils.GenerateFileFromTemplate(
 		filepath.Join(buildDir, "Dockerfile"),
 		typescriptclient.DockerfileContent,
 		templateData,
@@ -394,7 +393,7 @@ func (op *openAPIProcessor) generateTypescriptClientConfigFiles(
 	}
 
 	// Write TsConfig
-	if err := op.generateFileFromTemplate(
+	if err := utils.GenerateFileFromTemplate(
 		filepath.Join(buildDir, "tsconfig.json"),
 		typescriptclient.TsConfigContent,
 		templateData,
@@ -426,7 +425,7 @@ func (op *openAPIProcessor) generateGoClientConfigFiles(
 	}
 
 	// Generate oapi-codegen config
-	if err := op.generateFileFromTemplate(
+	if err := utils.GenerateFileFromTemplate(
 		filepath.Join(buildDir, "config.yaml"),
 		goclient.OapiConfigTemplate,
 		templateData,
@@ -435,7 +434,7 @@ func (op *openAPIProcessor) generateGoClientConfigFiles(
 	}
 
 	// Generate go.mod
-	if err := op.generateFileFromTemplate(
+	if err := utils.GenerateFileFromTemplate(
 		filepath.Join(buildDir, "go.mod"),
 		goclient.GoModTemplate,
 		templateData,
@@ -444,7 +443,7 @@ func (op *openAPIProcessor) generateGoClientConfigFiles(
 	}
 
 	// Generate embed.go
-	if err := op.generateFileFromTemplate(
+	if err := utils.GenerateFileFromTemplate(
 		filepath.Join(buildDir, "embed.go"),
 		goclient.EmbedGoTemplate,
 		templateData,
@@ -453,7 +452,7 @@ func (op *openAPIProcessor) generateGoClientConfigFiles(
 	}
 
 	// Generate Dockerfile
-	if err := op.generateFileFromTemplate(
+	if err := utils.GenerateFileFromTemplate(
 		filepath.Join(buildDir, "Dockerfile"),
 		goclient.DockerfileTemplate,
 		templateData,
@@ -482,28 +481,6 @@ func (op *openAPIProcessor) generateGoClientName(service *model.Service) string 
 
 func (op *openAPIProcessor) generateGoClientVersion(version *semver.Version) string {
 	return fmt.Sprintf("v%s", version.String())
-}
-
-func (op *openAPIProcessor) generateFileFromTemplate(
-	outputPath string,
-	tmplContent string,
-	data interface{},
-) error {
-	tmpl, err := template.New("").Parse(tmplContent)
-	if err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
-	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return fmt.Errorf("failed to execute template: %w", err)
-	}
-
-	if err := os.WriteFile(outputPath, buf.Bytes(), 0644); err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
-	}
-
-	return nil
 }
 
 func (op *openAPIProcessor) copyOpenAPISpec(service *model.Service, buildDir string) error {

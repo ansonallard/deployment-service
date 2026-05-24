@@ -234,6 +234,10 @@ components:
     GoServiceConfiguration:
       type: object
       additionalProperties: false
+      properties:
+        binaryDirectory:
+          type: string
+          description: Path to binary directory for serivce. If not provided, defaults to root of package.
     OpenAPIConfiguration:
       type: object
       additionalProperties: false

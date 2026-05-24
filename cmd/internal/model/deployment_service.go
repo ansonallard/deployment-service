@@ -53,7 +53,9 @@ type GoConfiguration struct {
 	Service *GoServiceConfiguration
 }
 
-type GoServiceConfiguration struct{}
+type GoServiceConfiguration struct {
+	BinaryDirectory string
+}
 
 type NpmServiceConfiguration struct {
 	ServieConfiguration
@@ -202,6 +204,7 @@ func (s *Service) handleOpenApiconfiugration(serviceConfig api.ServiceConfigurat
 func (s *Service) handleGoConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
 	var err error
 	var goConfigurationDto api.GoConfiguration
+	var goService api.GoService
 
 	if goConfigurationDto, err = serviceConfig.AsGoConfiguration(); err != nil {
 		if _, ok := err.(*json.SyntaxError); ok {
@@ -210,16 +213,22 @@ func (s *Service) handleGoConfiguration(serviceConfig api.ServiceConfiguration) 
 		return nil, err
 	}
 
-	if _, err = goConfigurationDto.Go.AsGoService(); err != nil {
+	if goService, err = goConfigurationDto.Go.AsGoService(); err != nil {
 		if _, ok := err.(*json.SyntaxError); ok {
 			return nil, &unionMemberNotPresent{}
 		}
 		return nil, err
 	}
 
+	internalGoServiceConfig := GoServiceConfiguration{}
+
+	if goService.Service.BinaryDirectory != nil && *goService.Service.BinaryDirectory != "" {
+		internalGoServiceConfig.BinaryDirectory = *goService.Service.BinaryDirectory
+	}
+
 	return &ServiceConfiguration{
 		Go: &GoConfiguration{
-			Service: &GoServiceConfiguration{},
+			Service: &internalGoServiceConfig,
 		},
 	}, nil
 }
@@ -289,9 +298,14 @@ func (s *Service) toOpenApiExternal(serviceDto *api.Service) {
 }
 
 func (s *Service) toGoExternal(serviceDto *api.Service) {
+	serviceConfig := api.GoServiceConfiguration{}
+	if s.Configuration.Go.Service.BinaryDirectory != "" {
+		serviceConfig.BinaryDirectory = &s.Configuration.Go.Service.BinaryDirectory
+	}
+
 	goConfiguration := api.GoConfigurationChoices{}
 	goConfiguration.FromGoService(api.GoService{
-		Service: api.GoServiceConfiguration{},
+		Service: serviceConfig,
 	})
 	serviceDto.Configuration = api.ServiceConfiguration{}
 	serviceDto.Configuration.FromGoConfiguration(api.GoConfiguration{
