@@ -80,19 +80,12 @@ func (gsp *goServiceProcessor) SetVersionFile(service *model.Service, version *s
 	return nil
 }
 
-func (gsp *goServiceProcessor) writeDockerfile(ctx context.Context, service *model.Service) error {
-	log := zerolog.Ctx(ctx)
-	log.Info().Interface("fullService", service).Msg("debugging full service")
+func (gsp *goServiceProcessor) writeDockerfile(service *model.Service) error {
 	dockerfilePath := path.Join(service.GitRepoFilePath, dockerfileName)
-	log.Info().Str("dockerfilePath", dockerfilePath).Msg("debugging")
 	serviceBindaryDir := "."
 	if service.Configuration.Go.Service.BinaryDirectory != "" {
 		serviceBindaryDir = service.Configuration.Go.Service.BinaryDirectory
 	}
-	log.Info().Interface("GoConfig", service.Configuration.Go).Msg("debugging")
-	log.Info().Interface("GoConfigService", service.Configuration.Go.Service).Msg("debugging")
-	log.Info().Str("BinaryDir", service.Configuration.Go.Service.BinaryDirectory).Msg("debugging")
-	log.Info().Str("serviceBindaryDir", dockerfilePath).Msg("debugging")
 	templateData := map[string]string{
 		"ServiceBinaryDir": serviceBindaryDir,
 	}
@@ -108,7 +101,7 @@ func (gsp *goServiceProcessor) BuildGoService(
 	log := zerolog.Ctx(ctx)
 	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Building Go service image")
 
-	if err := gsp.writeDockerfile(ctx, service); err != nil {
+	if err := gsp.writeDockerfile(service); err != nil {
 		return err
 	}
 
