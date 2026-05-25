@@ -13,7 +13,7 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/internal/model"
 	"github.com/ansonallard/deployment-service/cmd/internal/releaser"
 	goservicetemplate "github.com/ansonallard/deployment-service/cmd/internal/templates/go_service"
-	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog"
 )
 
 const versionFileName = "version.txt"
@@ -98,6 +98,7 @@ func (gsp *goServiceProcessor) writeDockerfile(service *model.Service) error {
 func (gsp *goServiceProcessor) BuildGoService(
 	ctx context.Context, service *model.Service, nextVersion *semver.Version,
 ) error {
+	log := zerolog.Ctx(ctx)
 	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Building Go service image")
 
 	if err := gsp.writeDockerfile(service); err != nil {
