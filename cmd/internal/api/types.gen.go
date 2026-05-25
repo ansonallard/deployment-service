@@ -39,11 +39,25 @@ type CreateServiceResponse struct {
 	Service Service `json:"service"`
 }
 
+// DockerComposeConfiguration defines model for DockerComposeConfiguration.
+type DockerComposeConfiguration struct {
+	DockerCompose DockerComposeConfigurationOptions `json:"dockerCompose"`
+}
+
+// DockerComposeConfigurationOptions defines model for DockerComposeConfigurationOptions.
+type DockerComposeConfigurationOptions struct {
+	// EnvFiles Map of env file names to their key-value pairs
+	EnvFiles *EnvFiles `json:"envFiles,omitempty"`
+}
+
 // DockerComposePath Path to docker-compose file in service
 type DockerComposePath = string
 
 // DockerfilePath Path to Dockerfile file in service
 type DockerfilePath = string
+
+// EnvFiles Map of env file names to their key-value pairs
+type EnvFiles map[string]EnvVars
 
 // EnvPath Path to .env file in service
 type EnvPath = string
@@ -453,6 +467,32 @@ func (t *ServiceConfiguration) FromGoConfiguration(v GoConfiguration) error {
 
 // MergeGoConfiguration performs a merge with any union data inside the ServiceConfiguration, using the provided GoConfiguration
 func (t *ServiceConfiguration) MergeGoConfiguration(v GoConfiguration) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsDockerComposeConfiguration returns the union data inside the ServiceConfiguration as a DockerComposeConfiguration
+func (t ServiceConfiguration) AsDockerComposeConfiguration() (DockerComposeConfiguration, error) {
+	var body DockerComposeConfiguration
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDockerComposeConfiguration overwrites any union data inside the ServiceConfiguration as the provided DockerComposeConfiguration
+func (t *ServiceConfiguration) FromDockerComposeConfiguration(v DockerComposeConfiguration) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDockerComposeConfiguration performs a merge with any union data inside the ServiceConfiguration, using the provided DockerComposeConfiguration
+func (t *ServiceConfiguration) MergeDockerComposeConfiguration(v DockerComposeConfiguration) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -1591,32 +1631,34 @@ func (sh *strictHandler) GetService(ctx *gin.Context, name Name) {
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"eLzax9l19ncAAAD///scC+8FJAAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

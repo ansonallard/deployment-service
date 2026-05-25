@@ -151,7 +151,7 @@ components:
         - $ref: "#/components/schemas/NPMConfiguration"
         - $ref: "#/components/schemas/OpenAPIConfiguration"
         - $ref: "#/components/schemas/GoConfiguration"
-      # - $ref: "#/components/schemas/NginxConfiguration"
+        - $ref: "#/components/schemas/DockerComposeConfiguration"
     NPMConfiguration:
       type: object
       additionalProperties: false
@@ -329,6 +329,25 @@ components:
     NextToken:
       type: string
       description: Pagination token
+    DockerComposeConfiguration:
+      type: object
+      additionalProperties: false
+      required:
+        - dockerCompose
+      properties:
+        dockerCompose:
+          $ref: "#/components/schemas/DockerComposeConfigurationOptions"
+    DockerComposeConfigurationOptions:
+      type: object
+      additionalProperties: false
+      properties:
+        envFiles:
+          $ref: "#/components/schemas/EnvFiles"
+    EnvFiles:
+      type: object
+      description: Map of env file names to their key-value pairs
+      additionalProperties:
+        $ref: "#/components/schemas/EnvVars"
   parameters:
     ID:
       name: id

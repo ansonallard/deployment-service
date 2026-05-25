@@ -22,9 +22,10 @@ type Name struct {
 }
 
 type ServiceConfiguration struct {
-	Npm     *NpmConfiguration
-	OpenAPI *OpenAPIConfiguration
-	Go      *GoConfiguration
+	Npm           *NpmConfiguration
+	OpenAPI       *OpenAPIConfiguration
+	Go            *GoConfiguration
+	DockerCompose *DockerComposeConfiguration
 }
 
 type OpenAPIConfiguration struct {
@@ -65,8 +66,14 @@ type ServieConfiguration struct {
 	EnvPath           string
 	DockerfilePath    string
 	DockerComposePath string
-	EnvVars           map[string]any
+	EnvVars           EnvVars
 }
+
+type DockerComposeConfiguration struct {
+	EnvFiles map[string]EnvVars
+}
+
+type EnvVars map[string]any
 
 func (s *Service) FromCreateRequest(dto *api.CreateServiceRequest) error {
 	var err error
@@ -121,6 +128,16 @@ func (s *Service) generateServiceConfiguration(serviceConfig api.ServiceConfigur
 			return nil, err
 		}
 		// If the error type was unionMemberNotPresent, then we continue to the next option
+	}
+	if serviceConfigModel != nil {
+		return serviceConfigModel, nil
+	}
+
+	serviceConfigModel, err = s.handleDockerComposeConfiguration(serviceConfig)
+	if err != nil {
+		if _, ok := err.(*unionMemberNotPresent); !ok {
+			return nil, err
+		}
 	}
 	if serviceConfigModel != nil {
 		return serviceConfigModel, nil
@@ -251,6 +268,8 @@ func (s *Service) ToExternal(serviceDto *api.Service) error {
 		s.toOpenApiExternal(serviceDto)
 	case s.Configuration.Go != nil:
 		s.toGoExternal(serviceDto)
+	case s.Configuration.DockerCompose != nil:
+		s.toDockerComposeExternal(serviceDto)
 	default:
 		return fmt.Errorf("invalid service configuration")
 	}
@@ -323,4 +342,41 @@ func FromListRequest(params api.ListServicesParams) (maxResults int, nextToken s
 		nextToken = *params.NextToken
 	}
 	return maxResults, nextToken
+}
+
+func (s *Service) handleDockerComposeConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+	dockerComposeConfig, err := serviceConfig.AsDockerComposeConfiguration()
+	if err != nil {
+		if _, ok := err.(*json.SyntaxError); ok {
+			return nil, &unionMemberNotPresent{}
+		}
+		return nil, err
+	}
+
+	internalConfig := DockerComposeConfiguration{}
+
+	if dockerComposeConfig.DockerCompose.EnvFiles != nil {
+		internalConfig.EnvFiles = make(map[string]EnvVars)
+		for k, v := range *dockerComposeConfig.DockerCompose.EnvFiles {
+			internalConfig.EnvFiles[k] = EnvVars(v)
+		}
+	}
+
+	return &ServiceConfiguration{
+		DockerCompose: &internalConfig,
+	}, nil
+}
+
+func (s *Service) toDockerComposeExternal(serviceDto *api.Service) {
+	envFiles := make(api.EnvFiles)
+	for k, v := range s.Configuration.DockerCompose.EnvFiles {
+		envFiles[k] = api.EnvVars(v)
+	}
+
+	serviceDto.Configuration = api.ServiceConfiguration{}
+	serviceDto.Configuration.FromDockerComposeConfiguration(api.DockerComposeConfiguration{
+		DockerCompose: api.DockerComposeConfigurationOptions{
+			EnvFiles: &envFiles,
+		},
+	})
 }
