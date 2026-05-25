@@ -113,7 +113,7 @@ func (gsp *goServiceProcessor) BuildGoService(
 	if err := gsp.dockerReleaser.BuildImageWithSecrets(
 		ctx,
 		service.GitRepoFilePath,
-		"Dockerfile",
+		dockerfileName,
 		tags,
 		map[string][]byte{
 			releaser.GoUserKey: []byte(gsp.goUser),
