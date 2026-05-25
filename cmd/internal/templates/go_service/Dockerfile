@@ -12,7 +12,7 @@ RUN --mount=type=secret,id=gouser \
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/service_binary {{.ServiceBinaryDir}} && \
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/service_binary /app/{{.ServiceBinaryDir}} && \
     mkdir -p /app/logs
 
 FROM gcr.io/distroless/static
