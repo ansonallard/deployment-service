@@ -18,6 +18,7 @@ type DeploymentService interface {
 	Create(ctx context.Context, service *model.Service) error
 	Get(ctx context.Context, serviceName string) (*model.Service, error)
 	List(ctx context.Context, maxResults int, nextToken string) ([]*model.Service, error)
+	Update(ctx context.Context, service *model.Service, ifMatch string) error
 }
 
 type DeploymentServieConfig struct {
@@ -148,6 +149,29 @@ func (ds *deploymentService) List(ctx context.Context, maxResults int, nextToken
 		}
 	}
 	return services, nil
+}
+
+func (ds *deploymentService) Update(ctx context.Context, service *model.Service, ifMatch string) error {
+	current, err := ds.Get(ctx, service.Name.Name)
+	if err != nil {
+		return err
+	}
+
+	if current.Version != ifMatch {
+		return &model.PreConditionFailedError{}
+	}
+
+	fileBytes, err := json.MarshalIndent(service, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal service: %w", err)
+	}
+
+	if err := os.WriteFile(ds.getServiceConfigurationFilePath(service.Name.Name), fileBytes, 0644); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	service.GitRepoFilePath = ds.getGitRepoFilePath(service.Name.Name)
+	return nil
 }
 
 func (ds *deploymentService) getServiceFilePath(serviceName string) string {

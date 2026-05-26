@@ -20,6 +20,9 @@ paths:
       responses:
         200:
           description: Create Service Response
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
           content:
             application/json:
               schema:
@@ -75,6 +78,9 @@ paths:
       responses:
         200:
           description: Get Service Response
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
           content:
             application/json:
               schema:
@@ -85,6 +91,44 @@ paths:
           $ref: "#/components/responses/Forbidden"
         404:
           $ref: "#/components/responses/NotFound"
+        429:
+          $ref: "#/components/responses/TooManyRequests"
+        5XX:
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      security:
+        - APIKey: []
+      tags:
+        - Services
+      operationId: UpdateService
+      parameters:
+        - $ref: "#/components/parameters/Name"
+        - $ref: "#/components/parameters/If-Match"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateServiceRequest"
+      responses:
+        200:
+          description: Update Service Response
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateServiceResponse"
+        400:
+          $ref: "#/components/responses/BadRequest"
+        401:
+          $ref: "#/components/responses/UnAuthorized"
+        403:
+          $ref: "#/components/responses/Forbidden"
+        404:
+          $ref: "#/components/responses/NotFound"
+        412:
+          $ref: "#/components/responses/PreConditionFailed"
         429:
           $ref: "#/components/responses/TooManyRequests"
         5XX:
@@ -126,6 +170,30 @@ components:
           $ref: "#/components/schemas/Services"
         nextToken:
           $ref: "#/components/schemas/NextToken"
+    UpdateServiceRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - service
+      properties:
+        service:
+          $ref: "#/components/schemas/ServiceConfigurationInput"
+    ServiceConfigurationInput:
+      type: object
+      additionalProperties: false
+      required:
+        - configuration
+      properties:
+        configuration:
+          $ref: "#/components/schemas/ServiceConfiguration"
+    UpdateServiceResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - service
+      properties:
+        service:
+          $ref: "#/components/schemas/Service"
     Services:
       type: array
       items:

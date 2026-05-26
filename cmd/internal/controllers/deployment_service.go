@@ -18,6 +18,9 @@ type DeploymentServiceController interface {
 
 	// (GET /services/{name})
 	GetService(ctx context.Context, request api.GetServiceRequestObject) (api.GetServiceResponseObject, error)
+
+	// (PUT /services/{name})
+	UpdateService(ctx context.Context, request api.UpdateServiceRequestObject) (api.UpdateServiceResponseObject, error)
 }
 
 type DeploymentServiceControllerConfig struct {
@@ -50,7 +53,12 @@ func (ds *deploymentServiceController) CreateService(ctx context.Context, reques
 		return nil, err
 	}
 	return api.CreateService200JSONResponse{
-		Service: *serviceDto,
+		Body: api.CreateServiceResponse{
+			Service: *serviceDto,
+		},
+		Headers: api.CreateService200ResponseHeaders{
+			ETag: api.Version(service.Version),
+		},
 	}, nil
 }
 
@@ -65,7 +73,12 @@ func (ds *deploymentServiceController) GetService(ctx context.Context, request a
 		return nil, err
 	}
 	return api.GetService200JSONResponse{
-		Service: *serviceDto,
+		Body: api.GetServiceResponse{
+			Service: *serviceDto,
+		},
+		Headers: api.GetService200ResponseHeaders{
+			ETag: api.Version(service.Version),
+		},
 	}, nil
 }
 
@@ -90,5 +103,35 @@ func (ds *deploymentServiceController) ListServices(ctx context.Context, request
 	return api.ListServices200JSONResponse{
 		Services:  servicesDto,
 		NextToken: nil,
+	}, nil
+}
+
+func (ds *deploymentServiceController) UpdateService(ctx context.Context, request api.UpdateServiceRequestObject) (api.UpdateServiceResponseObject, error) {
+	existing, err := ds.service.Get(ctx, request.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	service := new(model.Service)
+	if err := service.FromUpdateRequest(request.Body, existing); err != nil {
+		return nil, err
+	}
+
+	if err := ds.service.Update(ctx, service, string(request.Params.IfMatch)); err != nil {
+		return nil, err
+	}
+
+	serviceDto := new(api.Service)
+	if err := service.ToExternal(serviceDto); err != nil {
+		return nil, err
+	}
+
+	return api.UpdateService200JSONResponse{
+		Body: api.UpdateServiceResponse{
+			Service: *serviceDto,
+		},
+		Headers: api.UpdateService200ResponseHeaders{
+			ETag: api.Version(service.Version),
+		},
 	}, nil
 }

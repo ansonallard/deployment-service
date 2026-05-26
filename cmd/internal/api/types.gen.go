@@ -200,6 +200,11 @@ type ServiceConfiguration struct {
 	union json.RawMessage
 }
 
+// ServiceConfigurationInput defines model for ServiceConfigurationInput.
+type ServiceConfigurationInput struct {
+	Configuration ServiceConfiguration `json:"configuration"`
+}
+
 // ServiceInput defines model for ServiceInput.
 type ServiceInput struct {
 	Configuration ServiceConfiguration `json:"configuration"`
@@ -211,6 +216,22 @@ type ServiceInput struct {
 
 // Services defines model for Services.
 type Services = []Service
+
+// UpdateServiceRequest defines model for UpdateServiceRequest.
+type UpdateServiceRequest struct {
+	Service ServiceConfigurationInput `json:"service"`
+}
+
+// UpdateServiceResponse defines model for UpdateServiceResponse.
+type UpdateServiceResponse struct {
+	Service Service `json:"service"`
+}
+
+// Version defines model for Version.
+type Version = string
+
+// IfMatch defines model for If-Match.
+type IfMatch = Version
 
 // MaxResults defines model for MaxResults.
 type MaxResults = int
@@ -243,6 +264,11 @@ type NotFound struct {
 	Message *string `json:"message,omitempty"`
 }
 
+// PreConditionFailed defines model for PreConditionFailed.
+type PreConditionFailed struct {
+	Message *string `json:"message,omitempty"`
+}
+
 // TooManyRequests defines model for TooManyRequests.
 type TooManyRequests struct {
 	Message *string `json:"message,omitempty"`
@@ -262,8 +288,17 @@ type ListServicesParams struct {
 	NextToken *NextTokenInput `form:"next_token,omitempty" json:"next_token,omitempty"`
 }
 
+// UpdateServiceParams defines parameters for UpdateService.
+type UpdateServiceParams struct {
+	// IfMatch Field for optimistic locking
+	IfMatch IfMatch `json:"If-Match"`
+}
+
 // CreateServiceJSONRequestBody defines body for CreateService for application/json ContentType.
 type CreateServiceJSONRequestBody = CreateServiceRequest
+
+// UpdateServiceJSONRequestBody defines body for UpdateService for application/json ContentType.
+type UpdateServiceJSONRequestBody = UpdateServiceRequest
 
 // AsGitConfigurationOptions returns the union data inside the GitConfiguration as a GitConfigurationOptions
 func (t GitConfiguration) AsGitConfigurationOptions() (GitConfigurationOptions, error) {
@@ -596,6 +631,11 @@ type ClientInterface interface {
 
 	// GetService request
 	GetService(ctx context.Context, name Name, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateServiceWithBody request with any body
+	UpdateServiceWithBody(ctx context.Context, name Name, params *UpdateServiceParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateService(ctx context.Context, name Name, params *UpdateServiceParams, body UpdateServiceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) ListServices(ctx context.Context, params *ListServicesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -636,6 +676,30 @@ func (c *Client) CreateService(ctx context.Context, body CreateServiceJSONReques
 
 func (c *Client) GetService(ctx context.Context, name Name, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetServiceRequest(c.Server, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateServiceWithBody(ctx context.Context, name Name, params *UpdateServiceParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateServiceRequestWithBody(c.Server, name, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateService(ctx context.Context, name Name, params *UpdateServiceParams, body UpdateServiceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateServiceRequest(c.Server, name, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -785,6 +849,66 @@ func NewGetServiceRequest(server string, name Name) (*http.Request, error) {
 	return req, nil
 }
 
+// NewUpdateServiceRequest calls the generic UpdateService builder with application/json body
+func NewUpdateServiceRequest(server string, name Name, params *UpdateServiceParams, body UpdateServiceJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateServiceRequestWithBody(server, name, params, "application/json", bodyReader)
+}
+
+// NewUpdateServiceRequestWithBody generates requests for UpdateService with any type of body
+func NewUpdateServiceRequestWithBody(server string, name Name, params *UpdateServiceParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/services/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithLocation("simple", false, "If-Match", runtime.ParamLocationHeader, params.IfMatch)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("If-Match", headerParam0)
+
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -838,6 +962,11 @@ type ClientWithResponsesInterface interface {
 
 	// GetServiceWithResponse request
 	GetServiceWithResponse(ctx context.Context, name Name, reqEditors ...RequestEditorFn) (*GetServiceResp, error)
+
+	// UpdateServiceWithBodyWithResponse request with any body
+	UpdateServiceWithBodyWithResponse(ctx context.Context, name Name, params *UpdateServiceParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateServiceResp, error)
+
+	UpdateServiceWithResponse(ctx context.Context, name Name, params *UpdateServiceParams, body UpdateServiceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateServiceResp, error)
 }
 
 type ListServicesResp struct {
@@ -922,6 +1051,35 @@ func (r GetServiceResp) StatusCode() int {
 	return 0
 }
 
+type UpdateServiceResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *UpdateServiceResponse
+	JSON400      *BadRequest
+	JSON401      *UnAuthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON412      *PreConditionFailed
+	JSON429      *TooManyRequests
+	JSON5XX      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateServiceResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateServiceResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // ListServicesWithResponse request returning *ListServicesResp
 func (c *ClientWithResponses) ListServicesWithResponse(ctx context.Context, params *ListServicesParams, reqEditors ...RequestEditorFn) (*ListServicesResp, error) {
 	rsp, err := c.ListServices(ctx, params, reqEditors...)
@@ -955,6 +1113,23 @@ func (c *ClientWithResponses) GetServiceWithResponse(ctx context.Context, name N
 		return nil, err
 	}
 	return ParseGetServiceResp(rsp)
+}
+
+// UpdateServiceWithBodyWithResponse request with arbitrary body returning *UpdateServiceResp
+func (c *ClientWithResponses) UpdateServiceWithBodyWithResponse(ctx context.Context, name Name, params *UpdateServiceParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateServiceResp, error) {
+	rsp, err := c.UpdateServiceWithBody(ctx, name, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateServiceResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateServiceWithResponse(ctx context.Context, name Name, params *UpdateServiceParams, body UpdateServiceJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateServiceResp, error) {
+	rsp, err := c.UpdateService(ctx, name, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateServiceResp(rsp)
 }
 
 // ParseListServicesResp parses an HTTP response from a ListServicesWithResponse call
@@ -1147,6 +1322,81 @@ func ParseGetServiceResp(rsp *http.Response) (*GetServiceResp, error) {
 	return response, nil
 }
 
+// ParseUpdateServiceResp parses an HTTP response from a UpdateServiceWithResponse call
+func ParseUpdateServiceResp(rsp *http.Response) (*UpdateServiceResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateServiceResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest UpdateServiceResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest UnAuthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreConditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode/100 == 5:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON5XX = &dest
+
+	}
+
+	return response, nil
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
@@ -1158,6 +1408,9 @@ type ServerInterface interface {
 
 	// (GET /services/{name})
 	GetService(c *gin.Context, name Name)
+
+	// (PUT /services/{name})
+	UpdateService(c *gin.Context, name Name, params UpdateServiceParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -1246,6 +1499,59 @@ func (siw *ServerInterfaceWrapper) GetService(c *gin.Context) {
 	siw.Handler.GetService(c, name)
 }
 
+// UpdateService operation middleware
+func (siw *ServerInterfaceWrapper) UpdateService(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name Name
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", c.Param("name"), &name, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter name: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(APIKeyScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateServiceParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "If-Match" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("If-Match")]; found {
+		var IfMatch IfMatch
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for If-Match, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "If-Match", valueList[0], &IfMatch, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter If-Match: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.IfMatch = IfMatch
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter If-Match is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateService(c, name, params)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -1276,6 +1582,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/services", wrapper.ListServices)
 	router.POST(options.BaseURL+"/services", wrapper.CreateService)
 	router.GET(options.BaseURL+"/services/:name", wrapper.GetService)
+	router.PUT(options.BaseURL+"/services/:name", wrapper.UpdateService)
 }
 
 type BadRequestJSONResponse struct {
@@ -1295,6 +1602,10 @@ type InternalServerErrorJSONResponse struct {
 }
 
 type NotFoundJSONResponse struct {
+	Message *string `json:"message,omitempty"`
+}
+
+type PreConditionFailedJSONResponse struct {
 	Message *string `json:"message,omitempty"`
 }
 
@@ -1381,13 +1692,21 @@ type CreateServiceResponseObject interface {
 	VisitCreateServiceResponse(w http.ResponseWriter) error
 }
 
-type CreateService200JSONResponse CreateServiceResponse
+type CreateService200ResponseHeaders struct {
+	ETag Version
+}
+
+type CreateService200JSONResponse struct {
+	Body    CreateServiceResponse
+	Headers CreateService200ResponseHeaders
+}
 
 func (response CreateService200JSONResponse) VisitCreateServiceResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("ETag", fmt.Sprint(response.Headers.ETag))
 	w.WriteHeader(200)
 
-	return json.NewEncoder(w).Encode(response)
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type CreateService400JSONResponse struct{ BadRequestJSONResponse }
@@ -1457,13 +1776,21 @@ type GetServiceResponseObject interface {
 	VisitGetServiceResponse(w http.ResponseWriter) error
 }
 
-type GetService200JSONResponse GetServiceResponse
+type GetService200ResponseHeaders struct {
+	ETag Version
+}
+
+type GetService200JSONResponse struct {
+	Body    GetServiceResponse
+	Headers GetService200ResponseHeaders
+}
 
 func (response GetService200JSONResponse) VisitGetServiceResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("ETag", fmt.Sprint(response.Headers.ETag))
 	w.WriteHeader(200)
 
-	return json.NewEncoder(w).Encode(response)
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type GetService401JSONResponse struct{ UnAuthorizedJSONResponse }
@@ -1516,6 +1843,101 @@ func (response GetService5XXJSONResponse) VisitGetServiceResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response.Body)
 }
 
+type UpdateServiceRequestObject struct {
+	Name   Name `json:"name"`
+	Params UpdateServiceParams
+	Body   *UpdateServiceJSONRequestBody
+}
+
+type UpdateServiceResponseObject interface {
+	VisitUpdateServiceResponse(w http.ResponseWriter) error
+}
+
+type UpdateService200ResponseHeaders struct {
+	ETag Version
+}
+
+type UpdateService200JSONResponse struct {
+	Body    UpdateServiceResponse
+	Headers UpdateService200ResponseHeaders
+}
+
+func (response UpdateService200JSONResponse) VisitUpdateServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("ETag", fmt.Sprint(response.Headers.ETag))
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type UpdateService400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateService400JSONResponse) VisitUpdateServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateService401JSONResponse struct{ UnAuthorizedJSONResponse }
+
+func (response UpdateService401JSONResponse) VisitUpdateServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateService403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateService403JSONResponse) VisitUpdateServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateService404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateService404JSONResponse) VisitUpdateServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateService412JSONResponse struct{ PreConditionFailedJSONResponse }
+
+func (response UpdateService412JSONResponse) VisitUpdateServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(412)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateService429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response UpdateService429JSONResponse) VisitUpdateServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateService5XXJSONResponse struct {
+	Body struct {
+		Message *string `json:"message,omitempty"`
+	}
+	StatusCode int
+}
+
+func (response UpdateService5XXJSONResponse) VisitUpdateServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 
@@ -1527,6 +1949,9 @@ type StrictServerInterface interface {
 
 	// (GET /services/{name})
 	GetService(ctx context.Context, request GetServiceRequestObject) (GetServiceResponseObject, error)
+
+	// (PUT /services/{name})
+	UpdateService(ctx context.Context, request UpdateServiceRequestObject) (UpdateServiceResponseObject, error)
 }
 
 type StrictHandlerFunc = strictgin.StrictGinHandlerFunc
@@ -1628,37 +2053,76 @@ func (sh *strictHandler) GetService(ctx *gin.Context, name Name) {
 	}
 }
 
+// UpdateService operation middleware
+func (sh *strictHandler) UpdateService(ctx *gin.Context, name Name, params UpdateServiceParams) {
+	var request UpdateServiceRequestObject
+
+	request.Name = name
+	request.Params = params
+
+	var body UpdateServiceJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.Status(http.StatusBadRequest)
+		ctx.Error(err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateService(ctx, request.(UpdateServiceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateService")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		ctx.Error(err)
+		ctx.Status(http.StatusInternalServerError)
+	} else if validResponse, ok := response.(UpdateServiceResponseObject); ok {
+		if err := validResponse.VisitUpdateServiceResponse(ctx.Writer); err != nil {
+			ctx.Error(err)
+		}
+	} else if response != nil {
+		ctx.Error(fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"eLzax9l19ncAAAD///scC+8FJAAA",
+	"H4sIAAAAAAAC/+RabW/bOBL+KwRvv51iO9neAedPl+alZ1ySGk26KNDNLRhpLHMjk1qS8sYX6L8fSOpd",
+	"tCU5Sd3iPjVG5+XhcObhkKNn7PNVzBkwJfH0GS+BBCDMnxd3JNT/BiB9QWNFOcNTfLcEtAYhKWeIL5Ba",
+	"AhIgeSJ8QBueIAF/JCAVBNjD0l/CimgbPwlY4Cn+y7j0Nrb/K8e/WGs4TVMPx0SQFagMwmxxdE2Uv2zD",
+	"uKQQBWjBBeKxoisqFfVRxP1HykLsYapl7FqwhxlZAZ6W1jysUVIBAZ4qkcBwpB6+Jk+fQCaRDVsd3DV5",
+	"QixZPYDQIRJWDCmOBKhEMPTnEhiKSUgZURW8fyQgNiXcFXn6LdOtxTKABUkihafHk4mnpegqWeW/KMt+",
+	"eVhtYm2GMgUhCAP6xlh+tu5iopalN/PPvoExdo0DeFJ3/BHYjMWJakdmni2aM6S02JalM3hSv+UCJYRs",
+	"RVIJHTWTLwJkzJkEswvvSfDJpp/+5XOmgJk/SRxH1Dd+x79LjeS5YjYWPAahqDWyAilJCC5/RUz5w+/g",
+	"K4ugvsD3JMhLAKcePuNsEVH/cHg+5bXp50hSD19y8UCDANjBYJUIUg/PmALBSHQLYg3iQgguDgYsx4Is",
+	"GGTR6Mzm6pInLDj8TjKu0MJAST08F3DGWUC10CWhERwO4FyAn0NBGZbUw3ecXxO2yQpTHgxeE0fq4c/s",
+	"NFFLLuh/Dxi2G65QBYYWyGjVUJogzF/mvN0w7+EzAUSBzlXqQ4X7SGD3gUTzCtQFiSR4DfTSKndRfObD",
+	"8rpl3vyk+FrYuG+ttwXR0vWbYhwE75z7jyDOtDGpS2lBw0QQuzeDMAZVQ11It3v9aPJCttZQNz9sJbnN",
+	"YQsCtr6kkf1711oucjlHujdQzXXL4WgK1FJ3R3aJR76VRQsaAaIM5bvntdPfGteCuy2Xcn2sXlQW7o5X",
+	"Z0B+IcIwTLMvjHVDCGxtYehux/SFaglUoEfYHK1JlACKCRUSO6J5wda7VzoqjHeu0WAsSaV08gHUd1uu",
+	"H6hqFSln8HGBp193e2tqFoXWx81+FfRQI+9d4Co0r/lfLj+LqDN8t//SUq3oWWWv6t25RP4Stgt5F7yG",
+	"/bMlpz60eS3kfdDl2v13mxfZ5TZ/W+bo62d2Yb4e4kGJ7jYxMAEpI2JzTgX4iovNdtqwgijIJc3NWoKg",
+	"ax9GaLYwTWcs+JoGEHgou4LaOy3nSrNaTPxHEsKozTauY2F23gZTdLizc3SEPl/NzrG5314BCzXnnfzd",
+	"XHCrP1u8dkVlTl5yT/Zi+R2289ZbCOqazZz2JD25LRmkMxtu5tcvyQMWrzoX0/CwrV61qT4IB1fszfy6",
+	"KFmvU/SKPggiNu7qrvz/sDhFpVY//7vrOze3G2NrY12yb0pXpf39+WqbjRc00Xmn07uRNgq662q1hd0m",
+	"CunU051vH8W8GbMaeTvVqzNsBDZ32ILuOSJSenPuQ9Zt1Kk12xp0Y1/5WrR5U+W8zie7lvrHGNjpfPaS",
+	"necxMBLTrgi6PG2jqtykK0y77AzthM4imr0a9ED+IRO3nnF2NtqADzJ011ArDW7IKtIXmPZenj5IHiVK",
+	"XzDsuZ+FSB/olNmXG8qQNqA7gBVRuHbkHrvO9mrIC9c7Yt6IQOs5hTkzWGeubjNCjnyj7m40akfVttZ3",
+	"dwQHAiqt5MBQXm0mqhAg6fMY0J80itADIBIEELwAfdb3a5hEKRAazH9Cqv45+uuvv45Cqn5yleh+B4jf",
+	"rOgerU3jDPFwSDtzunWtSz1Mgy6t2bmWYz3uV8WAohphGuQTB4vRayzXGfwtZ1zvHqe5zOF016nUvNl1",
+	"ye94Akv7xqCY93zb5GrsaO/9OxDcvWth7xzfL73NeqmClez9hlMYI0KQjXldj4Nv+zbtSMghHWwD7/f2",
+	"8pUPn51TBgl+Iqja3GoHFsrpfPZv2BTT3uYw/MvRaUyPtES5czHVv82MgrKFeeFRVOlGAp9DHPHNCpgq",
+	"TrdrHkCEPbzOgeHJ6Hg00ViLZg7/PJqMTrBnhs0G1rh6UQ5BZb1ftmkBntau8Lj+RcAWei1FxpWx/Dba",
+	"q0g3xtWa7WoD5ZPJZNBcaNeeO18mHPMgLVfEuBT08DsLxuWjAD2ujMCNynG3Sm0KZpR+7laqDXDfnfyj",
+	"W8Mxf/vbly/deq7pcDXlTVbkyf713pxYJNTJUrLZferhmEtHstWmU9n3DyDVex5sXm3nnUO6tP35wmtm",
+	"m3vq5kg3K9hOOM/1KZDLYyY2NjLGwXecqJMeiXpW+VLiB8js1Cs5dfys2T3dSq3lZGcwsdru4i0J0jF2",
+	"cuTrB1CvnKzfKPPedWsU35j8MJyaOJKs1kftmWfdR3fxMZ/NyddnbWf7+sas7W5BHVVgBf9vWHto7Ryf",
+	"dCs4vpz6QQg/mzblBZWICE/xeH2M0/v0fwEAAP//Yme9cdArAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

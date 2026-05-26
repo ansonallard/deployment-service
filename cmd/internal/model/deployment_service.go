@@ -11,6 +11,7 @@ import (
 type Service struct {
 	Name
 	ID              string `json:"id"`
+	Version         string `json:"version"`
 	GitSSHUrl       string `json:"git_ssh_url"`
 	GitBranchName   string `json:"branch_name"`
 	GitRepoFilePath string
@@ -88,6 +89,22 @@ func (s *Service) FromCreateRequest(dto *api.CreateServiceRequest) error {
 	s.GitBranchName = gitConfigurationOptions.BranchName
 
 	s.ID = utils.GenerateUlidString()
+	s.Version = utils.GenerateUlidString()
+
+	serviceConfiguration, err := s.generateServiceConfiguration(dto.Service.Configuration)
+	if err != nil {
+		return err
+	}
+	s.Configuration = *serviceConfiguration
+	return nil
+}
+
+func (s *Service) FromUpdateRequest(dto *api.UpdateServiceRequest, existing *Service) error {
+	s.Name.Name = existing.Name.Name
+	s.ID = existing.ID
+	s.Version = utils.GenerateUlidString()
+	s.GitSSHUrl = existing.GitSSHUrl
+	s.GitBranchName = existing.GitBranchName
 
 	serviceConfiguration, err := s.generateServiceConfiguration(dto.Service.Configuration)
 	if err != nil {

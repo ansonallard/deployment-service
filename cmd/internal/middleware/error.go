@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/ansonallard/deployment-service/cmd/internal/model"
 	"github.com/ansonallard/go_utils/openapi/ierr"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
@@ -26,6 +27,8 @@ func ErrorHandlerMiddleware() gin.HandlerFunc {
 				abortWithStatusResponse(ctx, http.StatusNotFound, err, c)
 			case *ierr.ConflictError:
 				abortWithStatusResponse(ctx, http.StatusConflict, err, c)
+			case *model.PreConditionFailedError:
+				abortWithStatusResponse(ctx, http.StatusPreconditionFailed, err, c)
 			default:
 				abortWithStatusResponse(ctx, http.StatusInternalServerError, err, c)
 			}
