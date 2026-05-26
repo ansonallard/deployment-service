@@ -24,9 +24,11 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/internal/version"
 	"github.com/ansonallard/deployment-service/cmd/service_version"
 	"github.com/ansonallard/go_utils/logging"
+	"github.com/ansonallard/go_utils/openapi/ierr"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/moby/moby/client"
+	ginmiddleware "github.com/oapi-codegen/gin-middleware"
 	"github.com/rs/zerolog"
 )
 
@@ -60,7 +62,8 @@ func main() {
 		defer logFile.Close()
 	}
 
-	ctx := logging.ZeroLogConfiguration(logFile, env.IsDevMode(), serviceName, service_version.ServiceVersion)
+	logLevel := zerolog.InfoLevel
+	ctx := logging.ZeroLogConfiguration(logFile, &logLevel, serviceName, service_version.ServiceVersion)
 	log := zerolog.Ctx(ctx)
 
 	log.Info().Msg("Loaded .env file")
@@ -209,6 +212,14 @@ func main() {
 		log.Fatal().Err(err).Msg("Could not parse port")
 	}
 
+	// Load embedded OpenAPI spec for request validation
+	swagger, err := api.GetSwagger()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Could not load OpenAPI spec.")
+	}
+	// Strip servers so kin-openapi doesn't reject requests based on host mismatch
+	swagger.Servers = nil
+
 	// Setup Gin router
 	ginMode := gin.ReleaseMode
 	if env.IsDevMode() {
@@ -225,6 +236,13 @@ func main() {
 	router.Use(middleware.ErrorHandlerMiddleware()) // Your custom error handling
 
 	router.Use(authZMiddleware.AuthMiddleware())
+
+	ginmiddleware.OapiRequestValidatorWithOptions(swagger, &ginmiddleware.Options{
+		ErrorHandler: func(c *gin.Context, message string, statusCode int) {
+			_ = c.Error(ierr.NewBadRequestError(message))
+			c.Abort()
+		},
+	})
 
 	strictHandler := api.NewStrictHandler(deploymentServiceController, nil)
 
