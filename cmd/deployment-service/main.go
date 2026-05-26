@@ -9,6 +9,7 @@ import (
 
 	"github.com/ansonallard/deployment-service/cmd/internal/api"
 	backgroundprocessor "github.com/ansonallard/deployment-service/cmd/internal/background_processor"
+	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/dockercompose"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/goservice"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/npm"
 	openapiBp "github.com/ansonallard/deployment-service/cmd/internal/background_processor/openapi"
@@ -175,6 +176,14 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to instantiate go service processor")
 	}
 
+	dockerComposeProcessor, err := dockercompose.NewDockerComposeProcessor(dockercompose.DockerComposeProcessorConfig{
+		Compose:   dockerCompose,
+		EnvWriter: envWriter,
+	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to instantiate docker compose processor")
+	}
+
 	backgroundProcessor, err := backgroundprocessor.NewBackgroundProcessor(backgroundprocessor.BackgroundProcessorConfig{
 		Versioner:     versioner,
 		SSHKeyPath:    env.GetSSHKeyPath(ctx),
@@ -183,10 +192,11 @@ func main() {
 			Name:  env.GetCICommitAuthorName(ctx),
 			Email: env.GetCICommitAuthorEmail(ctx),
 		},
-		NpmServiceProcessor: npmServiceProcessor,
-		OpenAPIProcessor:    openAPIProcessor,
-		GoServiceProcessor:  goServiceProcessor,
-		IsDev:               env.IsDevMode(),
+		NpmServiceProcessor:    npmServiceProcessor,
+		OpenAPIProcessor:       openAPIProcessor,
+		GoServiceProcessor:     goServiceProcessor,
+		DockerComposeProcessor: dockerComposeProcessor,
+		IsDev:                  env.IsDevMode(),
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to instantiate background processor")

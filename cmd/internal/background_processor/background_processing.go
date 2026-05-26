@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/dockercompose"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/goservice"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/npm"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/openapi"
@@ -30,14 +31,15 @@ type BackgroundProcesseror interface {
 }
 
 type BackgroundProcessorConfig struct {
-	Versioner           *version.Versioner
-	SSHKeyPath          string
-	GitRepoOrigin       string
-	CiCommitAuthor      *CiCommitAuthor
-	NpmServiceProcessor npm.NPMServiceProcessor
-	OpenAPIProcessor    openapi.OpenAPIProcessor
-	GoServiceProcessor  goservice.GoServiceProcessor
-	IsDev               bool
+	Versioner              *version.Versioner
+	SSHKeyPath             string
+	GitRepoOrigin          string
+	CiCommitAuthor         *CiCommitAuthor
+	NpmServiceProcessor    npm.NPMServiceProcessor
+	OpenAPIProcessor       openapi.OpenAPIProcessor
+	GoServiceProcessor     goservice.GoServiceProcessor
+	DockerComposeProcessor dockercompose.DockerComposeProcessor
+	IsDev                  bool
 }
 
 type CiCommitAuthor struct {
@@ -71,29 +73,34 @@ func NewBackgroundProcessor(config BackgroundProcessorConfig) (BackgroundProcess
 	if config.GoServiceProcessor == nil {
 		return nil, fmt.Errorf("goServiceProcessor not provided")
 	}
+	if config.DockerComposeProcessor == nil {
+		return nil, fmt.Errorf("dockerComposeProcessor not provided")
+	}
 
 	return &backgroundProcessor{
-			versioner:           *config.Versioner,
-			gitRepoOrigin:       config.GitRepoOrigin,
-			sshAuth:             sshAuth,
-			ciCommmitAuthor:     config.CiCommitAuthor,
-			npmServiceProcessor: config.NpmServiceProcessor,
-			openAPIProcessor:    config.OpenAPIProcessor,
-			goServiceProcessor:  config.GoServiceProcessor,
-			isDevMode:           config.IsDev,
+			versioner:              *config.Versioner,
+			gitRepoOrigin:          config.GitRepoOrigin,
+			sshAuth:                sshAuth,
+			ciCommmitAuthor:        config.CiCommitAuthor,
+			npmServiceProcessor:    config.NpmServiceProcessor,
+			openAPIProcessor:       config.OpenAPIProcessor,
+			goServiceProcessor:     config.GoServiceProcessor,
+			dockerComposeProcessor: config.DockerComposeProcessor,
+			isDevMode:              config.IsDev,
 		},
 		nil
 }
 
 type backgroundProcessor struct {
-	versioner           version.Versioner
-	sshAuth             *ssh.PublicKeys
-	gitRepoOrigin       string
-	ciCommmitAuthor     *CiCommitAuthor
-	npmServiceProcessor npm.NPMServiceProcessor
-	openAPIProcessor    openapi.OpenAPIProcessor
-	goServiceProcessor  goservice.GoServiceProcessor
-	isDevMode           bool
+	versioner              version.Versioner
+	sshAuth                *ssh.PublicKeys
+	gitRepoOrigin          string
+	ciCommmitAuthor        *CiCommitAuthor
+	npmServiceProcessor    npm.NPMServiceProcessor
+	openAPIProcessor       openapi.OpenAPIProcessor
+	goServiceProcessor     goservice.GoServiceProcessor
+	dockerComposeProcessor dockercompose.DockerComposeProcessor
+	isDevMode              bool
 }
 
 func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *model.Service) error {
@@ -130,6 +137,8 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 		if err := bp.goServiceProcessor.SetVersionFile(service, nextVersion); err != nil {
 			return err
 		}
+	case serviceConfiguration.DockerCompose != nil:
+		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Docker Compose Service")
 	}
 
 	if !bp.isDevMode {
@@ -166,6 +175,15 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 
 		if err := bp.goServiceProcessor.BuildGoService(ctx, service, nextVersion); err != nil {
 			return fmt.Errorf("failed to build Go service: %w", err)
+		}
+	case serviceConfiguration.DockerCompose != nil:
+		log.Info().
+			Str("service", service.Name.Name).
+			Str("nextVersion", nextVersion.String()).
+			Msg("Deploying Docker Compose application")
+
+		if err := bp.dockerComposeProcessor.DeployDockerComposeApplication(ctx, service, nextVersion); err != nil {
+			return fmt.Errorf("failed to deploy Docker Compose application: %w", err)
 		}
 	}
 
