@@ -198,8 +198,8 @@ func main() {
 
 	go func() {
 		log.Info().Msg("Waiting on messages from serviceChannel to start background processing")
-		for service := range serviceChannel {
-			go processBackgroundJob(ctx, interval, backgroundProcessor, service)
+		for serviceName := range serviceChannel {
+			go processBackgroundJob(ctx, interval, backgroundProcessor, deploymentService.Get, serviceName)
 		}
 	}()
 
@@ -262,11 +262,12 @@ func processBackgroundJob(
 	ctx context.Context,
 	interval time.Duration,
 	backgroundProcessor backgroundprocessor.BackgroundProcesseror,
-	service *model.Service,
+	getService func(context.Context, string) (*model.Service, error),
+	serviceName string,
 ) {
 	log := zerolog.Ctx(ctx)
 	log.Info().
-		Str("service", service.Name.Name).
+		Str("service", serviceName).
 		Msg("New service created, starting background processing")
 
 	// Create ticker for repeating processing
@@ -276,13 +277,20 @@ func processBackgroundJob(
 	for {
 		select {
 		case <-ctx.Done():
-			log.Info().Str("service", service.Name.Name).
+			log.Info().Str("service", serviceName).
 				Msg("Stopping background processing due to context cancel")
 			return
 		case <-ticker.C:
+			service, err := getService(ctx, serviceName)
+			if err != nil {
+				log.Error().Err(err).
+					Str("service", serviceName).
+					Msg("Failed to get service for background processing")
+				continue
+			}
 			if err := backgroundProcessor.ProcessService(ctx, service); err != nil {
 				log.Error().Err(err).
-					Str("service", service.Name.Name).
+					Str("service", serviceName).
 					Msg("Error when processing service")
 			}
 		}

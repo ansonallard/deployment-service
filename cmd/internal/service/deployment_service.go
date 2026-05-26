@@ -18,7 +18,7 @@ type DeploymentService interface {
 	CollectExistingServicesForBackgroundProcessing(ctx context.Context) error
 }
 
-type ServiceChannel = chan *model.Service
+type ServiceChannel = chan string
 
 type DeploymentServiceConfig struct {
 	Repo                 repo.DeploymentService
@@ -58,7 +58,7 @@ func (ds *deploymentService) Create(ctx context.Context, service *model.Service)
 		return err
 	}
 	// Kick off background processing
-	ds.backgroundJobChannel <- service
+	ds.backgroundJobChannel <- service.Name.Name
 	return nil
 }
 
@@ -83,7 +83,7 @@ func (ds *deploymentService) CollectExistingServicesForBackgroundProcessing(ctx 
 	log.Info().Interface("services", services).Int("numberOfServices", len(services)).
 		Msgf("Collected %d pre-existing services. Sending notifications for processing", len(services))
 	for _, service := range services {
-		ds.backgroundJobChannel <- service
+		ds.backgroundJobChannel <- service.Name.Name
 		log.Info().Interface("service", service).Msg("Notified for processing")
 	}
 	return nil
