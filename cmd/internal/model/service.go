@@ -99,13 +99,7 @@ func (s *Service) FromCreateRequest(dto *api.CreateServiceRequest) error {
 	return nil
 }
 
-func (s *Service) FromUpdateRequest(dto *api.UpdateServiceRequest, existing *Service) error {
-	s.Name.Name = existing.Name.Name
-	s.ID = existing.ID
-	s.Version = utils.GenerateUlidString()
-	s.GitSSHUrl = existing.GitSSHUrl
-	s.GitBranchName = existing.GitBranchName
-
+func (s *Service) FromUpdateRequest(dto *api.UpdateServiceRequest) error {
 	serviceConfiguration, err := s.generateServiceConfiguration(dto.Service.Configuration)
 	if err != nil {
 		return err

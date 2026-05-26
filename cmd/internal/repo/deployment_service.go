@@ -8,6 +8,7 @@ import (
 	"path"
 
 	"github.com/ansonallard/deployment-service/cmd/internal/model"
+	"github.com/ansonallard/deployment-service/cmd/internal/utils"
 	"github.com/ansonallard/go_utils/openapi/ierr"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -18,7 +19,7 @@ type DeploymentService interface {
 	Create(ctx context.Context, service *model.Service) error
 	Get(ctx context.Context, serviceName string) (*model.Service, error)
 	List(ctx context.Context, maxResults int, nextToken string) ([]*model.Service, error)
-	Update(ctx context.Context, service *model.Service, ifMatch string) error
+	Update(ctx context.Context, name string, ifMatch string, partial *model.Service) (*model.Service, error)
 }
 
 type DeploymentServieConfig struct {
@@ -151,27 +152,30 @@ func (ds *deploymentService) List(ctx context.Context, maxResults int, nextToken
 	return services, nil
 }
 
-func (ds *deploymentService) Update(ctx context.Context, service *model.Service, ifMatch string) error {
-	current, err := ds.Get(ctx, service.Name.Name)
+func (ds *deploymentService) Update(ctx context.Context, name string, ifMatch string, partial *model.Service) (*model.Service, error) {
+	current, err := ds.Get(ctx, name)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if current.Version != ifMatch {
-		return &model.PreConditionFailedError{}
+		return nil, &model.PreConditionFailedError{}
 	}
 
-	fileBytes, err := json.MarshalIndent(service, "", "  ")
+	current.Configuration = partial.Configuration
+	current.Version = utils.GenerateUlidString()
+
+	fileBytes, err := json.MarshalIndent(current, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal service: %w", err)
+		return nil, fmt.Errorf("failed to marshal service: %w", err)
 	}
 
-	if err := os.WriteFile(ds.getServiceConfigurationFilePath(service.Name.Name), fileBytes, 0644); err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
+	if err := os.WriteFile(ds.getServiceConfigurationFilePath(name), fileBytes, 0644); err != nil {
+		return nil, fmt.Errorf("failed to write file: %w", err)
 	}
 
-	service.GitRepoFilePath = ds.getGitRepoFilePath(service.Name.Name)
-	return nil
+	current.GitRepoFilePath = ds.getGitRepoFilePath(name)
+	return current, nil
 }
 
 func (ds *deploymentService) getServiceFilePath(serviceName string) string {

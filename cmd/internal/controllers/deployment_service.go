@@ -107,22 +107,18 @@ func (ds *deploymentServiceController) ListServices(ctx context.Context, request
 }
 
 func (ds *deploymentServiceController) UpdateService(ctx context.Context, request api.UpdateServiceRequestObject) (api.UpdateServiceResponseObject, error) {
-	existing, err := ds.service.Get(ctx, request.Name)
+	partial := new(model.Service)
+	if err := partial.FromUpdateRequest(request.Body); err != nil {
+		return nil, err
+	}
+
+	updated, err := ds.service.Update(ctx, request.Name, string(request.Params.IfMatch), partial)
 	if err != nil {
 		return nil, err
 	}
 
-	service := new(model.Service)
-	if err := service.FromUpdateRequest(request.Body, existing); err != nil {
-		return nil, err
-	}
-
-	if err := ds.service.Update(ctx, service, string(request.Params.IfMatch)); err != nil {
-		return nil, err
-	}
-
 	serviceDto := new(api.Service)
-	if err := service.ToExternal(serviceDto); err != nil {
+	if err := updated.ToExternal(serviceDto); err != nil {
 		return nil, err
 	}
 
@@ -131,7 +127,7 @@ func (ds *deploymentServiceController) UpdateService(ctx context.Context, reques
 			Service: *serviceDto,
 		},
 		Headers: api.UpdateService200ResponseHeaders{
-			ETag: api.Version(service.Version),
+			ETag: api.Version(updated.Version),
 		},
 	}, nil
 }
