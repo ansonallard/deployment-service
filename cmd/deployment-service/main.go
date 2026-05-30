@@ -28,6 +28,7 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/service_version"
 	"github.com/ansonallard/go_utils/logging"
 	"github.com/ansonallard/go_utils/openapi/ierr"
+	lmiddleware "github.com/ansonallard/go_utils/openapi/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/moby/moby/client"
@@ -249,10 +250,10 @@ func main() {
 
 	router := gin.New()
 
-	router.Use(middleware.InjectLogger(log))
+	router.Use(lmiddleware.InjectLogger(log))
 
 	router.Use(gin.Recovery())
-	router.Use(middleware.LoggingMiddleware())      // Your custom logging
+	router.Use(lmiddleware.LoggingMiddleware())     // Your custom logging
 	router.Use(middleware.ErrorHandlerMiddleware()) // Your custom error handling
 
 	router.Use(authZMiddleware.AuthMiddleware())
