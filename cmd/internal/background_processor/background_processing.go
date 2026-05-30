@@ -176,7 +176,7 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 		if err := bp.openAPIProcessor.BuildAndDeployOpenAPIClient(ctx, service, nextVersion); err != nil {
 			return fmt.Errorf("failed to build and deploy OpenAPI npm client: %w", err)
 		}
-	case serviceConfiguration.Go.Service != nil:
+	case serviceConfiguration.Go != nil && serviceConfiguration.Go.Service != nil:
 		log.Info().
 			Str("service", service.Name.Name).
 			Str("nextVersion", nextVersion.String()).
