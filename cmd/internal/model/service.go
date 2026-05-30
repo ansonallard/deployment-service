@@ -114,7 +114,6 @@ func (s *Service) FromUpdateRequest(dto *api.UpdateServiceRequest) error {
 }
 
 func (s *Service) generateServiceConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
-	fmt.Printf("%+v", serviceConfig)
 	var err error
 
 	serviceConfigModel, err := s.handleNpmConfiguration(serviceConfig)
