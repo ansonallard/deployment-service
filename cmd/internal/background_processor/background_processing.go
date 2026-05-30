@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/dockerbuild"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/dockercompose"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/goservice"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/npm"
@@ -39,6 +40,7 @@ type BackgroundProcessorConfig struct {
 	OpenAPIProcessor       openapi.OpenAPIProcessor
 	GoServiceProcessor     goservice.GoServiceProcessor
 	DockerComposeProcessor dockercompose.DockerComposeProcessor
+	DockerBuildProcessor   dockerbuild.DockerBuildProcessor
 	IsDev                  bool
 }
 
@@ -76,6 +78,9 @@ func NewBackgroundProcessor(config BackgroundProcessorConfig) (BackgroundProcess
 	if config.DockerComposeProcessor == nil {
 		return nil, fmt.Errorf("dockerComposeProcessor not provided")
 	}
+	if config.DockerBuildProcessor == nil {
+		return nil, fmt.Errorf("dockerBuildProcessor not provided")
+	}
 
 	return &backgroundProcessor{
 			versioner:              *config.Versioner,
@@ -86,6 +91,7 @@ func NewBackgroundProcessor(config BackgroundProcessorConfig) (BackgroundProcess
 			openAPIProcessor:       config.OpenAPIProcessor,
 			goServiceProcessor:     config.GoServiceProcessor,
 			dockerComposeProcessor: config.DockerComposeProcessor,
+			dockerBuildProcessor:   config.DockerBuildProcessor,
 			isDevMode:              config.IsDev,
 		},
 		nil
@@ -100,6 +106,7 @@ type backgroundProcessor struct {
 	openAPIProcessor       openapi.OpenAPIProcessor
 	goServiceProcessor     goservice.GoServiceProcessor
 	dockerComposeProcessor dockercompose.DockerComposeProcessor
+	dockerBuildProcessor   dockerbuild.DockerBuildProcessor
 	isDevMode              bool
 }
 
@@ -139,6 +146,8 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 		}
 	case serviceConfiguration.DockerCompose != nil:
 		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Docker Compose Service")
+	case serviceConfiguration.DockerBuild != nil:
+		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Docker Build Service")
 	}
 
 	if !bp.isDevMode {
@@ -184,6 +193,15 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 
 		if err := bp.dockerComposeProcessor.DeployDockerComposeApplication(ctx, service, nextVersion); err != nil {
 			return fmt.Errorf("failed to deploy Docker Compose application: %w", err)
+		}
+	case serviceConfiguration.DockerBuild != nil:
+		log.Info().
+			Str("service", service.Name.Name).
+			Str("nextVersion", nextVersion.String()).
+			Msg("Building and pushing Docker image")
+
+		if err := bp.dockerBuildProcessor.BuildAndPushDockerImage(ctx, service, nextVersion); err != nil {
+			return fmt.Errorf("failed to build and push Docker image: %w", err)
 		}
 	}
 

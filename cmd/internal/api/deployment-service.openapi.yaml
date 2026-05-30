@@ -220,6 +220,7 @@ components:
         - $ref: "#/components/schemas/OpenAPIConfiguration"
         - $ref: "#/components/schemas/GoConfiguration"
         - $ref: "#/components/schemas/DockerComposeConfiguration"
+        - $ref: "#/components/schemas/DockerBuildConfiguration"
     NPMConfiguration:
       type: object
       additionalProperties: false
@@ -416,6 +417,20 @@ components:
       description: Map of env file names to their key-value pairs
       additionalProperties:
         $ref: "#/components/schemas/EnvVars"
+    DockerBuildConfiguration:
+      type: object
+      additionalProperties: false
+      required:
+        - dockerBuild
+      properties:
+        dockerBuild:
+          $ref: "#/components/schemas/DockerBuildConfigurationOptions"
+    DockerBuildConfigurationOptions:
+      type: object
+      additionalProperties: false
+      properties:
+        dockerfilePath:
+          $ref: "#/components/schemas/DockerfilePath"
   parameters:
     ID:
       name: id

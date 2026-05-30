@@ -9,6 +9,7 @@ import (
 
 	"github.com/ansonallard/deployment-service/cmd/internal/api"
 	backgroundprocessor "github.com/ansonallard/deployment-service/cmd/internal/background_processor"
+	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/dockerbuild"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/dockercompose"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/goservice"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/npm"
@@ -184,6 +185,13 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to instantiate docker compose processor")
 	}
 
+	dockerBuildProcessor, err := dockerbuild.NewDockerBuildProcessor(dockerbuild.DockerBuildProcessorConfig{
+		DockerReleaser: dockerReleaser,
+	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to instantiate docker build processor")
+	}
+
 	backgroundProcessor, err := backgroundprocessor.NewBackgroundProcessor(backgroundprocessor.BackgroundProcessorConfig{
 		Versioner:     versioner,
 		SSHKeyPath:    env.GetSSHKeyPath(ctx),
@@ -196,6 +204,7 @@ func main() {
 		OpenAPIProcessor:       openAPIProcessor,
 		GoServiceProcessor:     goServiceProcessor,
 		DockerComposeProcessor: dockerComposeProcessor,
+		DockerBuildProcessor:   dockerBuildProcessor,
 		IsDev:                  env.IsDevMode(),
 	})
 	if err != nil {

@@ -50,6 +50,17 @@ type DockerComposeConfigurationOptions struct {
 	EnvFiles *EnvFiles `json:"envFiles,omitempty"`
 }
 
+// DockerBuildConfiguration defines model for DockerBuildConfiguration.
+type DockerBuildConfiguration struct {
+	DockerBuild DockerBuildConfigurationOptions `json:"dockerBuild"`
+}
+
+// DockerBuildConfigurationOptions defines model for DockerBuildConfigurationOptions.
+type DockerBuildConfigurationOptions struct {
+	// DockerfilePath Path to Dockerfile file in service
+	DockerfilePath *DockerfilePath `json:"dockerfilePath,omitempty"`
+}
+
 // DockerComposePath Path to docker-compose file in service
 type DockerComposePath = string
 
@@ -528,6 +539,32 @@ func (t *ServiceConfiguration) FromDockerComposeConfiguration(v DockerComposeCon
 
 // MergeDockerComposeConfiguration performs a merge with any union data inside the ServiceConfiguration, using the provided DockerComposeConfiguration
 func (t *ServiceConfiguration) MergeDockerComposeConfiguration(v DockerComposeConfiguration) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsDockerBuildConfiguration returns the union data inside the ServiceConfiguration as a DockerBuildConfiguration
+func (t ServiceConfiguration) AsDockerBuildConfiguration() (DockerBuildConfiguration, error) {
+	var body DockerBuildConfiguration
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDockerBuildConfiguration overwrites any union data inside the ServiceConfiguration as the provided DockerBuildConfiguration
+func (t *ServiceConfiguration) FromDockerBuildConfiguration(v DockerBuildConfiguration) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDockerBuildConfiguration performs a merge with any union data inside the ServiceConfiguration, using the provided DockerBuildConfiguration
+func (t *ServiceConfiguration) MergeDockerBuildConfiguration(v DockerBuildConfiguration) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err

@@ -27,6 +27,7 @@ type ServiceConfiguration struct {
 	OpenAPI       *OpenAPIConfiguration
 	Go            *GoConfiguration
 	DockerCompose *DockerComposeConfiguration
+	DockerBuild   *DockerBuildConfiguration
 }
 
 type OpenAPIConfiguration struct {
@@ -72,6 +73,10 @@ type ServieConfiguration struct {
 
 type DockerComposeConfiguration struct {
 	EnvFiles map[string]EnvVars
+}
+
+type DockerBuildConfiguration struct {
+	DockerfilePath string
 }
 
 type EnvVars map[string]any
@@ -145,6 +150,16 @@ func (s *Service) generateServiceConfiguration(serviceConfig api.ServiceConfigur
 	}
 
 	serviceConfigModel, err = s.handleDockerComposeConfiguration(serviceConfig)
+	if err != nil {
+		if _, ok := err.(*unionMemberNotPresent); !ok {
+			return nil, err
+		}
+	}
+	if serviceConfigModel != nil {
+		return serviceConfigModel, nil
+	}
+
+	serviceConfigModel, err = s.handleDockerBuildConfiguration(serviceConfig)
 	if err != nil {
 		if _, ok := err.(*unionMemberNotPresent); !ok {
 			return nil, err
@@ -281,6 +296,8 @@ func (s *Service) ToExternal(serviceDto *api.Service) error {
 		s.toGoExternal(serviceDto)
 	case s.Configuration.DockerCompose != nil:
 		s.toDockerComposeExternal(serviceDto)
+	case s.Configuration.DockerBuild != nil:
+		s.toDockerBuildExternal(serviceDto)
 	default:
 		return fmt.Errorf("invalid service configuration")
 	}
@@ -376,6 +393,35 @@ func (s *Service) handleDockerComposeConfiguration(serviceConfig api.ServiceConf
 	return &ServiceConfiguration{
 		DockerCompose: &internalConfig,
 	}, nil
+}
+
+func (s *Service) handleDockerBuildConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+	dockerBuildConfig, err := serviceConfig.AsDockerBuildConfiguration()
+	if err != nil {
+		if _, ok := err.(*json.SyntaxError); ok {
+			return nil, &unionMemberNotPresent{}
+		}
+		return nil, err
+	}
+
+	internalConfig := DockerBuildConfiguration{}
+
+	if dockerBuildConfig.DockerBuild.DockerfilePath != nil && *dockerBuildConfig.DockerBuild.DockerfilePath != "" {
+		internalConfig.DockerfilePath = *dockerBuildConfig.DockerBuild.DockerfilePath
+	}
+
+	return &ServiceConfiguration{
+		DockerBuild: &internalConfig,
+	}, nil
+}
+
+func (s *Service) toDockerBuildExternal(serviceDto *api.Service) {
+	serviceDto.Configuration = api.ServiceConfiguration{}
+	serviceDto.Configuration.FromDockerBuildConfiguration(api.DockerBuildConfiguration{
+		DockerBuild: api.DockerBuildConfigurationOptions{
+			DockerfilePath: &s.Configuration.DockerBuild.DockerfilePath,
+		},
+	})
 }
 
 func (s *Service) toDockerComposeExternal(serviceDto *api.Service) {
