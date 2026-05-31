@@ -3,9 +3,11 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/ansonallard/deployment-service/cmd/internal/api"
 	"github.com/ansonallard/deployment-service/cmd/internal/utils"
+	"github.com/ansonallard/go_utils/openapi/ierr"
 )
 
 type Service struct {
@@ -81,6 +83,81 @@ type DockerBuildConfiguration struct {
 
 type EnvVars map[string]any
 
+type serviceConfigMember string
+type npmConfigMember string
+type goConfigMember string
+
+const (
+	serviceConfigNpm           serviceConfigMember = "npm"
+	serviceConfigOpenAPI       serviceConfigMember = "openapi"
+	serviceConfigGo            serviceConfigMember = "go"
+	serviceConfigDockerCompose serviceConfigMember = "dockerCompose"
+	serviceConfigDockerBuild   serviceConfigMember = "dockerBuild"
+)
+
+const (
+	npmConfigService npmConfigMember = "service"
+	npmConfigLibrary npmConfigMember = "library"
+)
+
+const (
+	goConfigService goConfigMember = "service"
+)
+
+var serviceConfigurationMembers = []serviceConfigMember{
+	serviceConfigNpm,
+	serviceConfigOpenAPI,
+	serviceConfigGo,
+	serviceConfigDockerCompose,
+	serviceConfigDockerBuild,
+}
+
+var npmConfigurationMembers = []npmConfigMember{
+	npmConfigService,
+	npmConfigLibrary,
+}
+
+var goConfigurationMembers = []goConfigMember{
+	goConfigService,
+}
+
+type unionMember interface {
+	~string
+}
+
+func detectUnionMember[T unionMember](raw []byte, members []T) (T, error) {
+	var probe map[string]any
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		var zero T
+		return zero, err
+	}
+
+	present := []T{}
+	for _, member := range members {
+		if _, ok := probe[string(member)]; ok {
+			present = append(present, member)
+		}
+	}
+
+	if len(present) == 0 {
+		strs := make([]string, len(members))
+		for i, m := range members {
+			strs[i] = string(m)
+		}
+		var zero T
+		return zero, ierr.NewBadRequestError(fmt.Sprintf("invalid configuration: none of the expected fields present, expected one of: %s", strings.Join(strs, ", ")))
+	}
+	if len(present) > 1 {
+		strs := make([]string, len(present))
+		for i, m := range present {
+			strs[i] = string(m)
+		}
+		var zero T
+		return zero, ierr.NewBadRequestError(fmt.Sprintf("invalid configuration: multiple configuration types provided: %s", strings.Join(strs, ", ")))
+	}
+	return present[0], nil
+}
+
 func (s *Service) FromCreateRequest(dto *api.CreateServiceRequest) error {
 	var err error
 	s.Name.Name = dto.Service.Name
@@ -113,169 +190,6 @@ func (s *Service) FromUpdateRequest(dto *api.UpdateServiceRequest) error {
 	return nil
 }
 
-func (s *Service) generateServiceConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
-	var err error
-
-	serviceConfigModel, err := s.handleNpmConfiguration(serviceConfig)
-	if err != nil {
-		if _, ok := err.(*unionMemberNotPresent); !ok {
-			return nil, err
-		}
-		// If the error type was unionMemberNotPresent, then we continue to the next option
-	}
-	if serviceConfigModel != nil {
-		return serviceConfigModel, nil
-	}
-
-	serviceConfigModel, err = s.handleOpenApiconfiugration(serviceConfig)
-	if err != nil {
-		if _, ok := err.(*unionMemberNotPresent); !ok {
-			return nil, err
-		}
-		// If the error type was unionMemberNotPresent, then we continue to the next option
-	}
-	if serviceConfigModel != nil {
-		return serviceConfigModel, nil
-	}
-
-	serviceConfigModel, err = s.handleGoConfiguration(serviceConfig)
-	if err != nil {
-		if _, ok := err.(*unionMemberNotPresent); !ok {
-			return nil, err
-		}
-		// If the error type was unionMemberNotPresent, then we continue to the next option
-	}
-	if serviceConfigModel != nil {
-		return serviceConfigModel, nil
-	}
-
-	serviceConfigModel, err = s.handleDockerComposeConfiguration(serviceConfig)
-	if err != nil {
-		if _, ok := err.(*unionMemberNotPresent); !ok {
-			return nil, err
-		}
-	}
-	if serviceConfigModel != nil {
-		return serviceConfigModel, nil
-	}
-
-	serviceConfigModel, err = s.handleDockerBuildConfiguration(serviceConfig)
-	if err != nil {
-		if _, ok := err.(*unionMemberNotPresent); !ok {
-			return nil, err
-		}
-	}
-	if serviceConfigModel != nil {
-		return serviceConfigModel, nil
-	}
-
-	return nil, fmt.Errorf("invalid config provided")
-}
-
-func (s *Service) handleNpmConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
-	var err error
-	var npmConfiguration api.NPMConfiguration
-
-	if npmConfiguration, err = serviceConfig.AsNPMConfiguration(); err != nil {
-		return nil, err
-	}
-
-	var npmServiceConfiguration api.NPMService
-	if npmServiceConfiguration, err = npmConfiguration.Npm.AsNPMService(); err != nil {
-		if _, ok := err.(*json.SyntaxError); ok {
-			return nil, &unionMemberNotPresent{}
-		}
-		return nil, err
-	}
-
-	return &ServiceConfiguration{
-		Npm: &NpmConfiguration{
-			Service: &NpmServiceConfiguration{
-				ServieConfiguration{
-					EnvPath:           npmServiceConfiguration.Service.EnvPath,
-					DockerfilePath:    npmServiceConfiguration.Service.DockerfilePath,
-					DockerComposePath: npmServiceConfiguration.Service.DockerComposePath,
-					EnvVars:           npmServiceConfiguration.Service.EnvVars,
-				},
-			},
-		},
-	}, nil
-}
-
-func (s *Service) handleOpenApiconfiugration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
-	var err error
-	var openapiConfigurationDto api.OpenAPIConfiguration
-
-	if openapiConfigurationDto, err = serviceConfig.AsOpenAPIConfiguration(); err != nil {
-		if _, ok := err.(*json.SyntaxError); ok {
-			return nil, &unionMemberNotPresent{}
-		}
-		return nil, err
-	}
-
-	// FIXME: yamlfilepath is a required property, and if it's not set, then we didn't have this type
-	if len(openapiConfigurationDto.Openapi.YamlFile) == 0 {
-		return nil, &unionMemberNotPresent{}
-	}
-
-	internalServiceConfig := ServiceConfiguration{
-		OpenAPI: &OpenAPIConfiguration{
-			OpenAPI: &OpenAPIServiceConfiguration{
-				YamlFile: openapiConfigurationDto.Openapi.YamlFile,
-			},
-		},
-	}
-
-	if openapiConfigurationDto.Openapi.TypescriptClient != nil {
-		internalServiceConfig.OpenAPI.OpenAPI.TypescriptClient = &TypescriptClient{
-			Name: Name{
-				Name: openapiConfigurationDto.Openapi.TypescriptClient.Name,
-			},
-		}
-	}
-
-	if openapiConfigurationDto.Openapi.GoClient != nil {
-		internalServiceConfig.OpenAPI.OpenAPI.GoClient = &GoClient{
-			Name: Name{
-				Name: openapiConfigurationDto.Openapi.GoClient.Name,
-			},
-		}
-	}
-	return &internalServiceConfig, nil
-}
-
-func (s *Service) handleGoConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
-	var err error
-	var goConfigurationDto api.GoConfiguration
-	var goService api.GoService
-
-	if goConfigurationDto, err = serviceConfig.AsGoConfiguration(); err != nil {
-		if _, ok := err.(*json.SyntaxError); ok {
-			return nil, &unionMemberNotPresent{}
-		}
-		return nil, err
-	}
-
-	if goService, err = goConfigurationDto.Go.AsGoService(); err != nil {
-		if _, ok := err.(*json.SyntaxError); ok {
-			return nil, &unionMemberNotPresent{}
-		}
-		return nil, err
-	}
-
-	internalGoServiceConfig := GoServiceConfiguration{}
-
-	if goService.Service.BinaryDirectory != nil && *goService.Service.BinaryDirectory != "" {
-		internalGoServiceConfig.BinaryDirectory = *goService.Service.BinaryDirectory
-	}
-
-	return &ServiceConfiguration{
-		Go: &GoConfiguration{
-			Service: &internalGoServiceConfig,
-		},
-	}, nil
-}
-
 func (s *Service) ToExternal(serviceDto *api.Service) error {
 	serviceDto.Id = s.ID
 	serviceDto.Name = s.Name.Name
@@ -299,7 +213,7 @@ func (s *Service) ToExternal(serviceDto *api.Service) error {
 	case s.Configuration.DockerBuild != nil:
 		s.toDockerBuildExternal(serviceDto)
 	default:
-		return fmt.Errorf("invalid service configuration")
+		return ierr.NewBadRequestError("invalid service configuration")
 	}
 
 	return nil
@@ -372,49 +286,6 @@ func FromListRequest(params api.ListServicesParams) (maxResults int, nextToken s
 	return maxResults, nextToken
 }
 
-func (s *Service) handleDockerComposeConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
-	dockerComposeConfig, err := serviceConfig.AsDockerComposeConfiguration()
-	if err != nil {
-		if _, ok := err.(*json.SyntaxError); ok {
-			return nil, &unionMemberNotPresent{}
-		}
-		return nil, err
-	}
-
-	internalConfig := DockerComposeConfiguration{}
-
-	if dockerComposeConfig.DockerCompose.EnvFiles != nil {
-		internalConfig.EnvFiles = make(map[string]EnvVars)
-		for k, v := range *dockerComposeConfig.DockerCompose.EnvFiles {
-			internalConfig.EnvFiles[k] = EnvVars(v)
-		}
-	}
-
-	return &ServiceConfiguration{
-		DockerCompose: &internalConfig,
-	}, nil
-}
-
-func (s *Service) handleDockerBuildConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
-	dockerBuildConfig, err := serviceConfig.AsDockerBuildConfiguration()
-	if err != nil {
-		if _, ok := err.(*json.SyntaxError); ok {
-			return nil, &unionMemberNotPresent{}
-		}
-		return nil, err
-	}
-
-	internalConfig := DockerBuildConfiguration{}
-
-	if dockerBuildConfig.DockerBuild.DockerfilePath != nil && *dockerBuildConfig.DockerBuild.DockerfilePath != "" {
-		internalConfig.DockerfilePath = *dockerBuildConfig.DockerBuild.DockerfilePath
-	}
-
-	return &ServiceConfiguration{
-		DockerBuild: &internalConfig,
-	}, nil
-}
-
 func (s *Service) toDockerBuildExternal(serviceDto *api.Service) {
 	serviceDto.Configuration = api.ServiceConfiguration{}
 	serviceDto.Configuration.FromDockerBuildConfiguration(api.DockerBuildConfiguration{
@@ -436,4 +307,176 @@ func (s *Service) toDockerComposeExternal(serviceDto *api.Service) {
 			EnvFiles: &envFiles,
 		},
 	})
+}
+
+func (s *Service) generateServiceConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+	raw, err := serviceConfig.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+
+	member, err := detectUnionMember(raw, serviceConfigurationMembers)
+	if err != nil {
+		return nil, err
+	}
+
+	switch member {
+	case serviceConfigNpm:
+		return s.handleNpmConfiguration(serviceConfig)
+	case serviceConfigOpenAPI:
+		return s.handleOpenApiconfiugration(serviceConfig)
+	case serviceConfigGo:
+		return s.handleGoConfiguration(serviceConfig)
+	case serviceConfigDockerCompose:
+		return s.handleDockerComposeConfiguration(serviceConfig)
+	case serviceConfigDockerBuild:
+		return s.handleDockerBuildConfiguration(serviceConfig)
+	default:
+		return nil, ierr.NewBadRequestError(fmt.Sprintf("unhandled configuration type: %s", member))
+	}
+}
+
+func (s *Service) handleNpmConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+	npmConfiguration, err := serviceConfig.AsNPMConfiguration()
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := npmConfiguration.Npm.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+
+	member, err := detectUnionMember(raw, npmConfigurationMembers)
+	if err != nil {
+		return nil, err
+	}
+
+	switch member {
+	case npmConfigService:
+		npmServiceConfiguration, err := npmConfiguration.Npm.AsNPMService()
+		if err != nil {
+			return nil, err
+		}
+		return &ServiceConfiguration{
+			Npm: &NpmConfiguration{
+				Service: &NpmServiceConfiguration{
+					ServieConfiguration{
+						EnvPath:           npmServiceConfiguration.Service.EnvPath,
+						DockerfilePath:    npmServiceConfiguration.Service.DockerfilePath,
+						DockerComposePath: npmServiceConfiguration.Service.DockerComposePath,
+						EnvVars:           npmServiceConfiguration.Service.EnvVars,
+					},
+				},
+			},
+		}, nil
+	case npmConfigLibrary:
+		// TODO: handle library case
+		return nil, ierr.NewBadRequestError("npm library configuration not yet implemented")
+	default:
+		return nil, ierr.NewBadRequestError(fmt.Sprintf("unhandled npm configuration type: %s", member))
+	}
+}
+
+func (s *Service) handleOpenApiconfiugration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+	openapiConfigurationDto, err := serviceConfig.AsOpenAPIConfiguration()
+	if err != nil {
+		return nil, err
+	}
+
+	// yamlFile is a required property that distinguishes this type structurally
+	if len(openapiConfigurationDto.Openapi.YamlFile) == 0 {
+		return nil, ierr.NewBadRequestError("invalid openapi configuration: yamlFile is required")
+	}
+
+	internalServiceConfig := ServiceConfiguration{
+		OpenAPI: &OpenAPIConfiguration{
+			OpenAPI: &OpenAPIServiceConfiguration{
+				YamlFile: openapiConfigurationDto.Openapi.YamlFile,
+			},
+		},
+	}
+
+	if openapiConfigurationDto.Openapi.TypescriptClient != nil {
+		internalServiceConfig.OpenAPI.OpenAPI.TypescriptClient = &TypescriptClient{
+			Name: Name{Name: openapiConfigurationDto.Openapi.TypescriptClient.Name},
+		}
+	}
+
+	if openapiConfigurationDto.Openapi.GoClient != nil {
+		internalServiceConfig.OpenAPI.OpenAPI.GoClient = &GoClient{
+			Name: Name{Name: openapiConfigurationDto.Openapi.GoClient.Name},
+		}
+	}
+
+	return &internalServiceConfig, nil
+}
+
+func (s *Service) handleGoConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+	goConfigurationDto, err := serviceConfig.AsGoConfiguration()
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := goConfigurationDto.Go.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+
+	member, err := detectUnionMember(raw, goConfigurationMembers)
+	if err != nil {
+		return nil, err
+	}
+
+	switch member {
+	case goConfigService:
+		goService, err := goConfigurationDto.Go.AsGoService()
+		if err != nil {
+			return nil, err
+		}
+
+		internalGoServiceConfig := GoServiceConfiguration{}
+		if goService.Service.BinaryDirectory != nil && *goService.Service.BinaryDirectory != "" {
+			internalGoServiceConfig.BinaryDirectory = *goService.Service.BinaryDirectory
+		}
+
+		return &ServiceConfiguration{
+			Go: &GoConfiguration{
+				Service: &internalGoServiceConfig,
+			},
+		}, nil
+	default:
+		return nil, ierr.NewBadRequestError(fmt.Sprintf("unhandled go configuration type: %s", member))
+	}
+}
+
+func (s *Service) handleDockerComposeConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+	dockerComposeConfig, err := serviceConfig.AsDockerComposeConfiguration()
+	if err != nil {
+		return nil, err
+	}
+
+	internalConfig := DockerComposeConfiguration{}
+	if dockerComposeConfig.DockerCompose.EnvFiles != nil {
+		internalConfig.EnvFiles = make(map[string]EnvVars)
+		for k, v := range *dockerComposeConfig.DockerCompose.EnvFiles {
+			internalConfig.EnvFiles[k] = EnvVars(v)
+		}
+	}
+
+	return &ServiceConfiguration{DockerCompose: &internalConfig}, nil
+}
+
+func (s *Service) handleDockerBuildConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+	dockerBuildConfig, err := serviceConfig.AsDockerBuildConfiguration()
+	if err != nil {
+		return nil, err
+	}
+
+	internalConfig := DockerBuildConfiguration{}
+	if dockerBuildConfig.DockerBuild.DockerfilePath != nil && *dockerBuildConfig.DockerBuild.DockerfilePath != "" {
+		internalConfig.DockerfilePath = *dockerBuildConfig.DockerBuild.DockerfilePath
+	}
+
+	return &ServiceConfiguration{DockerBuild: &internalConfig}, nil
 }
