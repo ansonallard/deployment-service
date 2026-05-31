@@ -20,6 +20,7 @@ const (
 	packageJSONFilePath   = "package.json"
 	packageJSONVersionKey = "version"
 	dockerfileName        = "Dockerfile"
+	nginxConf             = "nginx.conf"
 )
 
 type NPMServiceProcessor interface {
@@ -96,7 +97,7 @@ func (nsp *npmServiceProcessor) BuildNpmService(
 ) error {
 	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Building image")
 
-	if err := nsp.writeDockerfile(service); err != nil {
+	if err := nsp.writeArtifacts(service); err != nil {
 		return err
 	}
 
@@ -116,6 +117,10 @@ func (nsp *npmServiceProcessor) BuildNpmService(
 		return err
 	}
 
+	if err := nsp.removeArtifacts(service); err != nil {
+		return err
+	}
+
 	for _, tag := range tags {
 		if err := nsp.dockerReleaser.PushImage(ctx, service.Name.Name, tag); err != nil {
 			return err
@@ -126,8 +131,51 @@ func (nsp *npmServiceProcessor) BuildNpmService(
 
 func (nsp *npmServiceProcessor) writeDockerfile(service *model.Service) error {
 	dockerfilePath := path.Join(service.GitRepoFilePath, dockerfileName)
-	if err := os.WriteFile(dockerfilePath, []byte(npmservice.Dockerfile), 0644); err != nil {
+
+	var dockerfileContents string
+	switch service.Configuration.Npm.Service.ServiceType {
+	case model.NpmServiceTypeBackend:
+		dockerfileContents = npmservice.BackendDockerfile
+	case model.NpmServiceTypeFrontend:
+		dockerfileContents = npmservice.FrontendDockerfile
+	}
+	if err := os.WriteFile(dockerfilePath, []byte(dockerfileContents), 0644); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
+	}
+	return nil
+}
+
+func (nsp *npmServiceProcessor) writeFrontendNginxConfig(service *model.Service) error {
+	filePath := path.Join(service.GitRepoFilePath, nginxConf)
+	if err := os.WriteFile(filePath, []byte(npmservice.FrontendNginxConfig), 0644); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+	return nil
+}
+
+func (nsp *npmServiceProcessor) writeArtifacts(service *model.Service) error {
+	if err := nsp.writeDockerfile(service); err != nil {
+		return err
+	}
+
+	if service.Configuration.Npm.Service.ServiceType == model.NpmServiceTypeFrontend {
+		if err := nsp.writeFrontendNginxConfig(service); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (nsp *npmServiceProcessor) removeArtifacts(service *model.Service) error {
+	dockerfilePath := path.Join(service.GitRepoFilePath, dockerfileName)
+	if err := os.Remove(dockerfilePath); err != nil {
+		return err
+	}
+	if service.Configuration.Npm.Service.ServiceType == model.NpmServiceTypeFrontend {
+		filePath := path.Join(service.GitRepoFilePath, nginxConf)
+		if err := os.Remove(filePath); err != nil {
+			return err
+		}
 	}
 	return nil
 }
