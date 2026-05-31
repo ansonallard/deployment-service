@@ -163,8 +163,8 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 	}
 
 	switch {
-	case serviceConfiguration.Npm != nil:
-		if err := bp.npmServiceProcessor.BuildAndDeployNpmService(ctx, service, nextVersion); err != nil {
+	case serviceConfiguration.Npm != nil && serviceConfiguration.Npm.Service != nil:
+		if err := bp.npmServiceProcessor.BuildNpmService(ctx, service, nextVersion); err != nil {
 			return err
 		}
 	case serviceConfiguration.OpenAPI != nil:
@@ -203,6 +203,11 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 		if err := bp.dockerBuildProcessor.BuildAndPushDockerImage(ctx, service, nextVersion); err != nil {
 			return fmt.Errorf("failed to build and push Docker image: %w", err)
 		}
+	default:
+		log.Error().
+			Str("service", service.Name.Name).
+			Str("nextVersion", nextVersion.String()).
+			Msg("Service type not supported")
 	}
 
 	return nil

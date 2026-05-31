@@ -66,12 +66,7 @@ type NpmServiceConfiguration struct {
 	ServieConfiguration
 }
 
-type ServieConfiguration struct {
-	EnvPath           string
-	DockerfilePath    string
-	DockerComposePath string
-	EnvVars           EnvVars
-}
+type ServieConfiguration struct{}
 
 type DockerComposeConfiguration struct {
 	EnvFiles map[string]EnvVars
@@ -222,12 +217,7 @@ func (s *Service) ToExternal(serviceDto *api.Service) error {
 func (s *Service) toNpmExternal(serviceDto *api.Service) {
 	npmConfiguration := api.NPMConfigurationChoices{}
 	npmConfiguration.FromNPMService(api.NPMService{
-		Service: api.NPMServiceConfiguration{
-			DockerComposePath: s.Configuration.Npm.Service.DockerComposePath,
-			DockerfilePath:    s.Configuration.Npm.Service.DockerfilePath,
-			EnvPath:           s.Configuration.Npm.Service.EnvPath,
-			EnvVars:           s.Configuration.Npm.Service.EnvVars,
-		},
+		Service: api.NPMServiceConfiguration{},
 	})
 	serviceDto.Configuration = api.ServiceConfiguration{}
 	serviceDto.Configuration.FromNPMConfiguration(api.NPMConfiguration{
@@ -354,19 +344,10 @@ func (s *Service) handleNpmConfiguration(serviceConfig api.ServiceConfiguration)
 
 	switch member {
 	case npmConfigService:
-		npmServiceConfiguration, err := npmConfiguration.Npm.AsNPMService()
-		if err != nil {
-			return nil, err
-		}
 		return &ServiceConfiguration{
 			Npm: &NpmConfiguration{
 				Service: &NpmServiceConfiguration{
-					ServieConfiguration{
-						EnvPath:           npmServiceConfiguration.Service.EnvPath,
-						DockerfilePath:    npmServiceConfiguration.Service.DockerfilePath,
-						DockerComposePath: npmServiceConfiguration.Service.DockerComposePath,
-						EnvVars:           npmServiceConfiguration.Service.EnvVars,
-					},
+					ServieConfiguration{},
 				},
 			},
 		}, nil

@@ -11,6 +11,7 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/internal/model"
 	"github.com/ansonallard/deployment-service/cmd/internal/releaser"
 	"github.com/ansonallard/deployment-service/cmd/internal/service"
+	npmservice "github.com/ansonallard/deployment-service/cmd/internal/templates/npm_service"
 	"github.com/rs/zerolog/log"
 	"github.com/tidwall/sjson"
 )
@@ -18,11 +19,12 @@ import (
 const (
 	packageJSONFilePath   = "package.json"
 	packageJSONVersionKey = "version"
+	dockerfileName        = "Dockerfile"
 )
 
 type NPMServiceProcessor interface {
 	SetPackageJsonVersion(service *model.Service, version *semver.Version) error
-	BuildAndDeployNpmService(
+	BuildNpmService(
 		ctx context.Context, service *model.Service, nextVersion *semver.Version,
 	) error
 }
@@ -89,10 +91,14 @@ func (nsp *npmServiceProcessor) getPackageJsonPath(gitRepoFilePath string) strin
 	return path.Join(gitRepoFilePath, packageJSONFilePath)
 }
 
-func (nsp *npmServiceProcessor) BuildAndDeployNpmService(
+func (nsp *npmServiceProcessor) BuildNpmService(
 	ctx context.Context, service *model.Service, nextVersion *semver.Version,
 ) error {
 	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Building image")
+
+	if err := nsp.writeDockerfile(service); err != nil {
+		return err
+	}
 
 	tags := []string{
 		nsp.dockerReleaser.CreateArtifactTag(service.Name.Name, nextVersion),
@@ -101,7 +107,7 @@ func (nsp *npmServiceProcessor) BuildAndDeployNpmService(
 	if err := nsp.dockerReleaser.BuildImageWithSecrets(
 		ctx,
 		service.GitRepoFilePath,
-		service.Configuration.Npm.Service.DockerfilePath,
+		dockerfileName,
 		tags,
 		map[string][]byte{
 			releaser.NpmrcSecretKey: nsp.npmrcData,
@@ -115,21 +121,13 @@ func (nsp *npmServiceProcessor) BuildAndDeployNpmService(
 			return err
 		}
 	}
+	return nil
+}
 
-	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Writing env vars")
-	if err := nsp.envFileWriter.WriteEnvFile(
-		ctx,
-		service.GitRepoFilePath,
-		service.Configuration.Npm.Service.EnvPath,
-		service.Configuration.Npm.Service.EnvVars,
-	); err != nil {
-		return err
+func (nsp *npmServiceProcessor) writeDockerfile(service *model.Service) error {
+	dockerfilePath := path.Join(service.GitRepoFilePath, dockerfileName)
+	if err := os.WriteFile(dockerfilePath, []byte(npmservice.Dockerfile), 0644); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
 	}
-
-	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Starting service")
-	if _, err := nsp.compose.Up(ctx, service.GitRepoFilePath, nextVersion); err != nil {
-		return err
-	}
-
 	return nil
 }

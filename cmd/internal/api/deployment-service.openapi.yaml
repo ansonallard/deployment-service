@@ -266,20 +266,6 @@ components:
     NPMServiceConfiguration:
       type: object
       additionalProperties: false
-      required:
-        - envPath
-        - dockerfilePath
-        - dockerComposePath
-        - envVars
-      properties:
-        envPath:
-          $ref: "#/components/schemas/EnvPath"
-        dockerfilePath:
-          $ref: "#/components/schemas/DockerfilePath"
-        dockerComposePath:
-          $ref: "#/components/schemas/DockerComposePath"
-        envVars:
-          $ref: "#/components/schemas/EnvVars"
     EnvVars:
       type: object
     EnvPath:
