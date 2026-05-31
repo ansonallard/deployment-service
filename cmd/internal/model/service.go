@@ -66,7 +66,16 @@ type NpmServiceConfiguration struct {
 	ServieConfiguration
 }
 
-type ServieConfiguration struct{}
+type NpmServiceType string
+
+const (
+	NpmServiceTypeBackend  = "backend"
+	NpmServiceTypeFrontend = "frontend"
+)
+
+type ServieConfiguration struct {
+	ServiceType NpmServiceType
+}
 
 type DockerComposeConfiguration struct {
 	EnvFiles map[string]EnvVars
@@ -216,8 +225,20 @@ func (s *Service) ToExternal(serviceDto *api.Service) error {
 
 func (s *Service) toNpmExternal(serviceDto *api.Service) {
 	npmConfiguration := api.NPMConfigurationChoices{}
+	var serviceType api.NPMServiceType
+	switch s.Configuration.Npm.Service.ServiceType {
+	case NpmServiceTypeBackend:
+		serviceType = api.Backend
+	case NpmServiceTypeFrontend:
+		serviceType = api.Frontend
+	default:
+		serviceType = api.Backend
+	}
+
 	npmConfiguration.FromNPMService(api.NPMService{
-		Service: api.NPMServiceConfiguration{},
+		Service: api.NPMServiceConfiguration{
+			Type: serviceType,
+		},
 	})
 	serviceDto.Configuration = api.ServiceConfiguration{}
 	serviceDto.Configuration.FromNPMConfiguration(api.NPMConfiguration{
@@ -344,10 +365,25 @@ func (s *Service) handleNpmConfiguration(serviceConfig api.ServiceConfiguration)
 
 	switch member {
 	case npmConfigService:
+		service, err := npmConfiguration.Npm.AsNPMService()
+		if err != nil {
+			return nil, err
+		}
+
+		var serviceType NpmServiceType
+		switch service.Service.Type {
+		case api.Backend:
+			serviceType = NpmServiceTypeBackend
+		case api.Frontend:
+			serviceType = NpmServiceTypeFrontend
+		}
+
 		return &ServiceConfiguration{
 			Npm: &NpmConfiguration{
 				Service: &NpmServiceConfiguration{
-					ServieConfiguration{},
+					ServieConfiguration{
+						ServiceType: serviceType,
+					},
 				},
 			},
 		}, nil

@@ -266,6 +266,17 @@ components:
     NPMServiceConfiguration:
       type: object
       additionalProperties: false
+      properties:
+        type:
+          $ref: "#/components/schemas/NPMServiceType"
+      required:
+        - type
+    NPMServiceType:
+      type: string
+      enum:
+        - backend
+        - frontend
+      default: backend
     EnvVars:
       type: object
     EnvPath:
