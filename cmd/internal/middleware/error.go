@@ -21,6 +21,8 @@ func ErrorHandlerMiddleware() gin.HandlerFunc {
 			ctx := c.Request.Context()
 
 			switch err.(type) {
+			case *ierr.BadRequestError:
+				abortWithStatusResponse(ctx, http.StatusBadRequest, err, c)
 			case *ierr.UnAuthorizedError:
 				abortWithStatusResponse(ctx, http.StatusUnauthorized, err, c)
 			case *ierr.NotFoundError:
