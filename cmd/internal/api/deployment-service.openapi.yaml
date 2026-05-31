@@ -67,6 +67,27 @@ paths:
           $ref: "#/components/responses/InternalServerError"
 
   /services/{name}:
+    delete:
+      security:
+        - APIKey: []
+      tags:
+        - Services
+      operationId: DeleteService
+      parameters:
+        - $ref: "#/components/parameters/Name"
+      responses:
+        204:
+          description: Service deleted
+        401:
+          $ref: "#/components/responses/UnAuthorized"
+        403:
+          $ref: "#/components/responses/Forbidden"
+        404:
+          $ref: "#/components/responses/NotFound"
+        429:
+          $ref: "#/components/responses/TooManyRequests"
+        5XX:
+          $ref: "#/components/responses/InternalServerError"
     get:
       security:
         - APIKey: []

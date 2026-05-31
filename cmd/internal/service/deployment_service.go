@@ -15,6 +15,7 @@ type DeploymentService interface {
 	Get(ctx context.Context, serviceName string) (*model.Service, error)
 	List(ctx context.Context, maxResults int, nextToken string) ([]*model.Service, error)
 	Update(ctx context.Context, name string, ifMatch string, partial *model.Service) (*model.Service, error)
+	Delete(ctx context.Context, serviceName string) error
 	CollectExistingServicesForBackgroundProcessing(ctx context.Context) error
 }
 
@@ -72,6 +73,10 @@ func (ds *deploymentService) List(ctx context.Context, maxResults int, nextToken
 
 func (ds *deploymentService) Update(ctx context.Context, name string, ifMatch string, partial *model.Service) (*model.Service, error) {
 	return ds.repo.Update(ctx, name, ifMatch, partial)
+}
+
+func (ds *deploymentService) Delete(ctx context.Context, serviceName string) error {
+	return ds.repo.Delete(ctx, serviceName)
 }
 
 func (ds *deploymentService) CollectExistingServicesForBackgroundProcessing(ctx context.Context) error {

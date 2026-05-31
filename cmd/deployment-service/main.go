@@ -302,6 +302,17 @@ func processBackgroundJob(
 				Msg("Stopping background processing due to context cancel")
 			return
 		case <-ticker.C:
+			service, err := getService(ctx, serviceName)
+			if err != nil {
+				if _, ok := err.(*ierr.NotFoundError); ok {
+					log.Info().Str("service", serviceName).
+						Msg("Service deleted, stopping background processing")
+					return
+				}
+				log.Error().Err(err).Str("service", serviceName).
+					Msg("Failed to get service for background processing")
+				continue
+			}
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
@@ -312,12 +323,6 @@ func processBackgroundJob(
 							Msg("Panic recovered in background processor")
 					}
 				}()
-				service, err := getService(ctx, serviceName)
-				if err != nil {
-					log.Error().Err(err).Str("service", serviceName).
-						Msg("Failed to get service for background processing")
-					return
-				}
 				if err := backgroundProcessor.ProcessService(ctx, service); err != nil {
 					log.Error().Err(err).Str("service", serviceName).
 						Msg("Error when processing service")

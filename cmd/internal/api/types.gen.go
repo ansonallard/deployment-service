@@ -39,17 +39,6 @@ type CreateServiceResponse struct {
 	Service Service `json:"service"`
 }
 
-// DockerComposeConfiguration defines model for DockerComposeConfiguration.
-type DockerComposeConfiguration struct {
-	DockerCompose DockerComposeConfigurationOptions `json:"dockerCompose"`
-}
-
-// DockerComposeConfigurationOptions defines model for DockerComposeConfigurationOptions.
-type DockerComposeConfigurationOptions struct {
-	// EnvFiles Map of env file names to their key-value pairs
-	EnvFiles *EnvFiles `json:"envFiles,omitempty"`
-}
-
 // DockerBuildConfiguration defines model for DockerBuildConfiguration.
 type DockerBuildConfiguration struct {
 	DockerBuild DockerBuildConfigurationOptions `json:"dockerBuild"`
@@ -59,6 +48,17 @@ type DockerBuildConfiguration struct {
 type DockerBuildConfigurationOptions struct {
 	// DockerfilePath Path to Dockerfile file in service
 	DockerfilePath *DockerfilePath `json:"dockerfilePath,omitempty"`
+}
+
+// DockerComposeConfiguration defines model for DockerComposeConfiguration.
+type DockerComposeConfiguration struct {
+	DockerCompose DockerComposeConfigurationOptions `json:"dockerCompose"`
+}
+
+// DockerComposeConfigurationOptions defines model for DockerComposeConfigurationOptions.
+type DockerComposeConfigurationOptions struct {
+	// EnvFiles Map of env file names to their key-value pairs
+	EnvFiles *EnvFiles `json:"envFiles,omitempty"`
 }
 
 // DockerComposePath Path to docker-compose file in service
@@ -666,6 +666,9 @@ type ClientInterface interface {
 
 	CreateService(ctx context.Context, body CreateServiceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteService request
+	DeleteService(ctx context.Context, name Name, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetService request
 	GetService(ctx context.Context, name Name, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -701,6 +704,18 @@ func (c *Client) CreateServiceWithBody(ctx context.Context, contentType string, 
 
 func (c *Client) CreateService(ctx context.Context, body CreateServiceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateServiceRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteService(ctx context.Context, name Name, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteServiceRequest(c.Server, name)
 	if err != nil {
 		return nil, err
 	}
@@ -852,6 +867,40 @@ func NewCreateServiceRequestWithBody(server string, contentType string, body io.
 	return req, nil
 }
 
+// NewDeleteServiceRequest generates requests for DeleteService
+func NewDeleteServiceRequest(server string, name Name) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/services/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetServiceRequest generates requests for GetService
 func NewGetServiceRequest(server string, name Name) (*http.Request, error) {
 	var err error
@@ -997,6 +1046,9 @@ type ClientWithResponsesInterface interface {
 
 	CreateServiceWithResponse(ctx context.Context, body CreateServiceJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateServiceResp, error)
 
+	// DeleteServiceWithResponse request
+	DeleteServiceWithResponse(ctx context.Context, name Name, reqEditors ...RequestEditorFn) (*DeleteServiceResp, error)
+
 	// GetServiceWithResponse request
 	GetServiceWithResponse(ctx context.Context, name Name, reqEditors ...RequestEditorFn) (*GetServiceResp, error)
 
@@ -1055,6 +1107,32 @@ func (r CreateServiceResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r CreateServiceResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteServiceResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *UnAuthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+	JSON429      *TooManyRequests
+	JSON5XX      *InternalServerError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteServiceResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteServiceResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1141,6 +1219,15 @@ func (c *ClientWithResponses) CreateServiceWithResponse(ctx context.Context, bod
 		return nil, err
 	}
 	return ParseCreateServiceResp(rsp)
+}
+
+// DeleteServiceWithResponse request returning *DeleteServiceResp
+func (c *ClientWithResponses) DeleteServiceWithResponse(ctx context.Context, name Name, reqEditors ...RequestEditorFn) (*DeleteServiceResp, error) {
+	rsp, err := c.DeleteService(ctx, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteServiceResp(rsp)
 }
 
 // GetServiceWithResponse request returning *GetServiceResp
@@ -1278,6 +1365,60 @@ func ParseCreateServiceResp(rsp *http.Response) (*CreateServiceResp, error) {
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode/100 == 5:
+		var dest InternalServerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON5XX = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteServiceResp parses an HTTP response from a DeleteServiceWithResponse call
+func ParseDeleteServiceResp(rsp *http.Response) (*DeleteServiceResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteServiceResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest UnAuthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
 		var dest TooManyRequests
@@ -1443,6 +1584,9 @@ type ServerInterface interface {
 	// (POST /services)
 	CreateService(c *gin.Context)
 
+	// (DELETE /services/{name})
+	DeleteService(c *gin.Context, name Name)
+
 	// (GET /services/{name})
 	GetService(c *gin.Context, name Name)
 
@@ -1508,6 +1652,32 @@ func (siw *ServerInterfaceWrapper) CreateService(c *gin.Context) {
 	}
 
 	siw.Handler.CreateService(c)
+}
+
+// DeleteService operation middleware
+func (siw *ServerInterfaceWrapper) DeleteService(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name Name
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", c.Param("name"), &name, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter name: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(APIKeyScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteService(c, name)
 }
 
 // GetService operation middleware
@@ -1618,6 +1788,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 
 	router.GET(options.BaseURL+"/services", wrapper.ListServices)
 	router.POST(options.BaseURL+"/services", wrapper.CreateService)
+	router.DELETE(options.BaseURL+"/services/:name", wrapper.DeleteService)
 	router.GET(options.BaseURL+"/services/:name", wrapper.GetService)
 	router.PUT(options.BaseURL+"/services/:name", wrapper.UpdateService)
 }
@@ -1805,6 +1976,72 @@ func (response CreateService5XXJSONResponse) VisitCreateServiceResponse(w http.R
 	return json.NewEncoder(w).Encode(response.Body)
 }
 
+type DeleteServiceRequestObject struct {
+	Name Name `json:"name"`
+}
+
+type DeleteServiceResponseObject interface {
+	VisitDeleteServiceResponse(w http.ResponseWriter) error
+}
+
+type DeleteService204Response struct {
+}
+
+func (response DeleteService204Response) VisitDeleteServiceResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteService401JSONResponse struct{ UnAuthorizedJSONResponse }
+
+func (response DeleteService401JSONResponse) VisitDeleteServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteService403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteService403JSONResponse) VisitDeleteServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteService404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteService404JSONResponse) VisitDeleteServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteService429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response DeleteService429JSONResponse) VisitDeleteServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteService5XXJSONResponse struct {
+	Body struct {
+		Message *string `json:"message,omitempty"`
+	}
+	StatusCode int
+}
+
+func (response DeleteService5XXJSONResponse) VisitDeleteServiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type GetServiceRequestObject struct {
 	Name Name `json:"name"`
 }
@@ -1984,6 +2221,9 @@ type StrictServerInterface interface {
 	// (POST /services)
 	CreateService(ctx context.Context, request CreateServiceRequestObject) (CreateServiceResponseObject, error)
 
+	// (DELETE /services/{name})
+	DeleteService(ctx context.Context, request DeleteServiceRequestObject) (DeleteServiceResponseObject, error)
+
 	// (GET /services/{name})
 	GetService(ctx context.Context, request GetServiceRequestObject) (GetServiceResponseObject, error)
 
@@ -2063,6 +2303,33 @@ func (sh *strictHandler) CreateService(ctx *gin.Context) {
 	}
 }
 
+// DeleteService operation middleware
+func (sh *strictHandler) DeleteService(ctx *gin.Context, name Name) {
+	var request DeleteServiceRequestObject
+
+	request.Name = name
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteService(ctx, request.(DeleteServiceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteService")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		ctx.Error(err)
+		ctx.Status(http.StatusInternalServerError)
+	} else if validResponse, ok := response.(DeleteServiceResponseObject); ok {
+		if err := validResponse.VisitDeleteServiceResponse(ctx.Writer); err != nil {
+			ctx.Error(err)
+		}
+	} else if response != nil {
+		ctx.Error(fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetService operation middleware
 func (sh *strictHandler) GetService(ctx *gin.Context, name Name) {
 	var request GetServiceRequestObject
@@ -2129,37 +2396,38 @@ func (sh *strictHandler) UpdateService(ctx *gin.Context, name Name, params Updat
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

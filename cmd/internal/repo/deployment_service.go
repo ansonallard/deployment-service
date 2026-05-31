@@ -20,6 +20,7 @@ type DeploymentService interface {
 	Get(ctx context.Context, serviceName string) (*model.Service, error)
 	List(ctx context.Context, maxResults int, nextToken string) ([]*model.Service, error)
 	Update(ctx context.Context, name string, ifMatch string, partial *model.Service) (*model.Service, error)
+	Delete(ctx context.Context, serviceName string) error
 }
 
 type DeploymentServieConfig struct {
@@ -176,6 +177,17 @@ func (ds *deploymentService) Update(ctx context.Context, name string, ifMatch st
 
 	current.GitRepoFilePath = ds.getGitRepoFilePath(name)
 	return current, nil
+}
+
+func (ds *deploymentService) Delete(ctx context.Context, serviceName string) error {
+	servicePath := ds.getServiceFilePath(serviceName)
+	if _, err := os.Stat(servicePath); err != nil {
+		return &ierr.NotFoundError{}
+	}
+	if err := os.RemoveAll(servicePath); err != nil {
+		return fmt.Errorf("failed to delete service: %w", err)
+	}
+	return nil
 }
 
 func (ds *deploymentService) getServiceFilePath(serviceName string) string {

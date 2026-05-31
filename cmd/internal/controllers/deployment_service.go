@@ -21,6 +21,9 @@ type DeploymentServiceController interface {
 
 	// (PUT /services/{name})
 	UpdateService(ctx context.Context, request api.UpdateServiceRequestObject) (api.UpdateServiceResponseObject, error)
+
+	// (DELETE /services/{name})
+	DeleteService(ctx context.Context, request api.DeleteServiceRequestObject) (api.DeleteServiceResponseObject, error)
 }
 
 type DeploymentServiceControllerConfig struct {
@@ -130,4 +133,11 @@ func (ds *deploymentServiceController) UpdateService(ctx context.Context, reques
 			ETag: api.Version(updated.Version),
 		},
 	}, nil
+}
+
+func (ds *deploymentServiceController) DeleteService(ctx context.Context, request api.DeleteServiceRequestObject) (api.DeleteServiceResponseObject, error) {
+	if err := ds.service.Delete(ctx, request.Name); err != nil {
+		return nil, err
+	}
+	return api.DeleteService204Response{}, nil
 }
