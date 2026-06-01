@@ -151,8 +151,12 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 	}
 
 	if !bp.isDevMode {
+		var skipStaging bool
+		if serviceConfiguration.DockerCompose != nil || serviceConfiguration.DockerBuild != nil {
+			skipStaging = true
+		}
 		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Commiting changes")
-		if err := bp.commitChanges(service.GitRepoFilePath, nextVersion); err != nil {
+		if err := bp.commitChanges(service.GitRepoFilePath, nextVersion, skipStaging); err != nil {
 			return err
 		}
 
@@ -286,7 +290,7 @@ func (bp *backgroundProcessor) shouldProcess(ctx context.Context, service *model
 	return !foundSemver, nil
 }
 
-func (bp *backgroundProcessor) commitChanges(repoPath string, version *semver.Version) error {
+func (bp *backgroundProcessor) commitChanges(repoPath string, version *semver.Version, skipStaging bool) error {
 	repo, err := git.PlainOpen(repoPath)
 	if err != nil {
 		return fmt.Errorf("failed to open repo: %w", err)
@@ -297,8 +301,10 @@ func (bp *backgroundProcessor) commitChanges(repoPath string, version *semver.Ve
 		return err
 	}
 
-	if err = workTree.AddGlob("*"); err != nil {
-		return err
+	if !skipStaging {
+		if err = workTree.AddGlob("*"); err != nil {
+			return err
+		}
 	}
 	_, err = workTree.Commit(fmt.Sprintf(ciCommitMsgFormat, version.String()), &git.CommitOptions{
 		Author: &object.Signature{
