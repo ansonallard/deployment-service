@@ -1,5 +1,7 @@
 ## Setup continuous updates
 
 ```
-crontab -e * * * * *  /path/to/your/script.sh
+crontab -e 
+
+* * * * *  cd /path/to/your/ && /path/to/your/script.sh
 ```
