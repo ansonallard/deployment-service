@@ -16,6 +16,9 @@ type DockerComposeProcessor interface {
 	DeployDockerComposeApplication(
 		ctx context.Context, service *model.Service, nextVersion *semver.Version,
 	) error
+	RefreshDockerComposeApplication(
+		ctx context.Context, service *model.Service,
+	) error
 }
 
 type DockerComposeProcessorConfig struct {
@@ -41,12 +44,7 @@ func NewDockerComposeProcessor(config DockerComposeProcessorConfig) (DockerCompo
 	}, nil
 }
 
-func (dcp *dockerComposeProcessor) DeployDockerComposeApplication(
-	ctx context.Context, service *model.Service, nextVersion *semver.Version,
-) error {
-	log := zerolog.Ctx(ctx)
-	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Writing env files")
-
+func (dcp *dockerComposeProcessor) writeEnvFiles(ctx context.Context, service *model.Service) error {
 	config := service.Configuration.DockerCompose
 	var errs []error
 	for envFile, envVars := range config.EnvFiles {
@@ -57,9 +55,45 @@ func (dcp *dockerComposeProcessor) DeployDockerComposeApplication(
 	if len(errs) > 0 {
 		return errors.Join(errs...)
 	}
+	return nil
+}
+
+func (dcp *dockerComposeProcessor) DeployDockerComposeApplication(
+	ctx context.Context, service *model.Service, nextVersion *semver.Version,
+) error {
+	log := zerolog.Ctx(ctx)
+	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Writing env files")
+
+	if err := dcp.writeEnvFiles(ctx, service); err != nil {
+		return err
+	}
 
 	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Starting compose application")
 	if _, err := dcp.compose.Up(ctx, service.GitRepoFilePath, nextVersion); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (dcp *dockerComposeProcessor) RefreshDockerComposeApplication(
+	ctx context.Context, service *model.Service,
+) error {
+	log := zerolog.Ctx(ctx)
+	log.Info().Str("service", service.Name.Name).Msg("Pulling latest images")
+
+	if _, err := dcp.compose.Pull(ctx, service.GitRepoFilePath); err != nil {
+		return fmt.Errorf("failed to pull images: %w", err)
+	}
+
+	log.Info().Str("service", service.Name.Name).Msg("Writing env files")
+
+	if err := dcp.writeEnvFiles(ctx, service); err != nil {
+		return err
+	}
+
+	log.Info().Str("service", service.Name.Name).Msg("Starting compose application")
+	if _, err := dcp.compose.Up(ctx, service.GitRepoFilePath, nil); err != nil {
 		return err
 	}
 

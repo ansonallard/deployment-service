@@ -113,11 +113,14 @@ type backgroundProcessor struct {
 func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *model.Service) error {
 	log := zerolog.Ctx(ctx)
 
-	shouldProcess, err := bp.shouldProcess(ctx, service)
+	hasNewCommit, err := bp.hasNewCommit(service)
 	if err != nil {
 		return err
 	}
-	if !shouldProcess {
+	if !hasNewCommit {
+		if service.Configuration.DockerCompose != nil {
+			return bp.dockerComposeProcessor.RefreshDockerComposeApplication(ctx, service)
+		}
 		return nil
 	}
 
@@ -217,7 +220,7 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 	return nil
 }
 
-func (bp *backgroundProcessor) shouldProcess(ctx context.Context, service *model.Service) (bool, error) {
+func (bp *backgroundProcessor) hasNewCommit(service *model.Service) (bool, error) {
 	repo, err := git.PlainOpen(service.GitRepoFilePath)
 	if err != nil {
 		return false, fmt.Errorf("failed to open repo: %w", err)

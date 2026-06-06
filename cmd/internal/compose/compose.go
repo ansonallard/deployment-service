@@ -24,6 +24,7 @@ const (
 type ComposeRunner interface {
 	Up(ctx context.Context, composeDir string, version *semver.Version) (string, error)
 	Down(ctx context.Context, composeDir string) (string, error)
+	Pull(ctx context.Context, composeDir string) (string, error)
 }
 
 // Config holds configuration options for the ComposeRunner.
@@ -61,6 +62,11 @@ func (r *runner) Down(ctx context.Context, composeDir string) (string, error) {
 	return r.runComposeCommand(ctx, nil, composeDir, "down")
 }
 
+// Pull runs `docker-compose pull` or `docker compose pull`.
+func (r *runner) Pull(ctx context.Context, composeDir string) (string, error) {
+	return r.runComposeCommand(ctx, nil, composeDir, "pull")
+}
+
 func (r *runner) runComposeCommand(ctx context.Context, version *semver.Version, composeDir string, args ...string) (string, error) {
 	info, err := os.Stat(composeDir)
 	if err != nil {
@@ -86,8 +92,10 @@ func (r *runner) runComposeCommand(ctx context.Context, version *semver.Version,
 	}
 
 	cmd.Dir = composeDir
-	// TODO: Need to standardize and input compose values
-	cmd.Env = append(os.Environ(), r.constructVersionEnvVar(version))
+	cmd.Env = os.Environ()
+	if version != nil {
+		cmd.Env = append(cmd.Env, r.constructVersionEnvVar(version))
+	}
 
 	var output bytes.Buffer
 	cmd.Stdout = &output
