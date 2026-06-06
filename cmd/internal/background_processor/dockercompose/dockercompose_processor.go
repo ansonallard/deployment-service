@@ -80,19 +80,19 @@ func (dcp *dockerComposeProcessor) RefreshDockerComposeApplication(
 	ctx context.Context, service *model.Service,
 ) error {
 	log := zerolog.Ctx(ctx)
-	log.Info().Str("service", service.Name.Name).Msg("Pulling latest images")
+	log.Debug().Str("service", service.Name.Name).Msg("Pulling latest images")
 
 	if _, err := dcp.compose.Pull(ctx, service.GitRepoFilePath); err != nil {
 		return fmt.Errorf("failed to pull images: %w", err)
 	}
 
-	log.Info().Str("service", service.Name.Name).Msg("Writing env files")
+	log.Debug().Str("service", service.Name.Name).Msg("Writing env files")
 
 	if err := dcp.writeEnvFiles(ctx, service); err != nil {
 		return err
 	}
 
-	log.Info().Str("service", service.Name.Name).Msg("Starting compose application")
+	log.Debug().Str("service", service.Name.Name).Msg("Starting compose application")
 	if _, err := dcp.compose.Up(ctx, service.GitRepoFilePath, nil); err != nil {
 		return err
 	}

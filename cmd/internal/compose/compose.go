@@ -102,8 +102,8 @@ func (r *runner) runComposeCommand(ctx context.Context, version *semver.Version,
 	cmd.Stderr = &output
 
 	log := zerolog.Ctx(ctx)
-	log.Info().Str("command path", cmd.Path).Interface("args", cmd.Args).Msg(fmt.Sprintf("Running command: %s, %+v", cmd.Path, cmd.Args))
-	log.Info().Str("Working directory:", cmd.Dir).Msg("Working dir")
+	log.Debug().Str("command path", cmd.Path).Interface("args", cmd.Args).Msg(fmt.Sprintf("Running command: %s, %+v", cmd.Path, cmd.Args))
+	log.Debug().Str("Working directory:", cmd.Dir).Msg("Working dir")
 
 	if err := cmd.Run(); err != nil {
 		exitCode := 0
@@ -113,7 +113,7 @@ func (r *runner) runComposeCommand(ctx context.Context, version *semver.Version,
 		return output.String(), fmt.Errorf("command %v failed (exit code %d): %w", cmd.Args, exitCode, err)
 	}
 
-	log.Info().Str("output", output.String()).Msg("Up output")
+	log.Debug().Str("output", output.String()).Msg("Up output")
 
 	return output.String(), nil
 }
