@@ -78,7 +78,8 @@ type ServieConfiguration struct {
 }
 
 type DockerComposeConfiguration struct {
-	EnvFiles map[string]EnvVars
+	EnvFiles      map[string]EnvVars
+	RefreshImages bool
 }
 
 type DockerBuildConfiguration struct {
@@ -307,15 +308,19 @@ func (s *Service) toDockerBuildExternal(serviceDto *api.Service) {
 }
 
 func (s *Service) toDockerComposeExternal(serviceDto *api.Service) {
-	envFiles := make(api.EnvFiles)
-	for k, v := range s.Configuration.DockerCompose.EnvFiles {
-		envFiles[k] = api.EnvVars(v)
+	var envFiles api.EnvFiles
+	if s.Configuration.DockerCompose.EnvFiles != nil {
+		envFiles = make(api.EnvFiles)
+		for k, v := range s.Configuration.DockerCompose.EnvFiles {
+			envFiles[k] = api.EnvVars(v)
+		}
 	}
 
 	serviceDto.Configuration = api.ServiceConfiguration{}
 	serviceDto.Configuration.FromDockerComposeConfiguration(api.DockerComposeConfiguration{
 		DockerCompose: api.DockerComposeConfigurationOptions{
-			EnvFiles: &envFiles,
+			EnvFiles:      &envFiles,
+			RefreshImages: &s.Configuration.DockerCompose.RefreshImages,
 		},
 	})
 }
@@ -479,6 +484,9 @@ func (s *Service) handleDockerComposeConfiguration(serviceConfig api.ServiceConf
 		for k, v := range *dockerComposeConfig.DockerCompose.EnvFiles {
 			internalConfig.EnvFiles[k] = EnvVars(v)
 		}
+	}
+	if dockerComposeConfig.DockerCompose.RefreshImages != nil {
+		internalConfig.RefreshImages = *dockerComposeConfig.DockerCompose.RefreshImages
 	}
 
 	return &ServiceConfiguration{DockerCompose: &internalConfig}, nil

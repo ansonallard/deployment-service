@@ -118,7 +118,7 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 		return err
 	}
 	if !hasNewCommit {
-		if service.Configuration.DockerCompose != nil {
+		if service.Configuration.DockerCompose != nil && service.Configuration.DockerCompose.RefreshImages {
 			return bp.dockerComposeProcessor.RefreshDockerComposeApplication(ctx, service)
 		}
 		return nil

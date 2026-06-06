@@ -430,6 +430,10 @@ components:
       properties:
         envFiles:
           $ref: "#/components/schemas/EnvFiles"
+        refreshImages:
+          type: boolean
+          description: When enabled, pulls latest images and restarts containers on each background check even without new commits
+          default: false
     EnvFiles:
       type: object
       description: Map of env file names to their key-value pairs
