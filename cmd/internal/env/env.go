@@ -105,6 +105,12 @@ func GetPathToDockerCLI() string {
 	return getOptionalEnvVar("PATH_TO_DOCKER_CLI", "/usr/bin/docker")
 }
 
+func GetTempoURI(ctx context.Context) string {
+	tempoHost := getRequiredEnvVar(ctx, "TEMPO_HOST")
+	tempoPort := getRequiredEnvVar(ctx, "TEMPO_PORT")
+	return fmt.Sprintf("%s:%s", tempoHost, tempoPort)
+}
+
 func getRequiredEnvVar(ctx context.Context, incomingEnvVar string) string {
 	log := zerolog.Ctx(ctx)
 	envVar := os.Getenv(incomingEnvVar)

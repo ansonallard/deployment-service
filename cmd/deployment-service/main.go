@@ -24,6 +24,7 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/internal/releaser"
 	"github.com/ansonallard/deployment-service/cmd/internal/repo"
 	"github.com/ansonallard/deployment-service/cmd/internal/service"
+	"github.com/ansonallard/deployment-service/cmd/internal/tracing"
 	"github.com/ansonallard/deployment-service/cmd/internal/version"
 	"github.com/ansonallard/deployment-service/cmd/service_version"
 	"github.com/ansonallard/go_utils/logging"
@@ -34,6 +35,11 @@ import (
 	"github.com/moby/moby/client"
 	ginmiddleware "github.com/oapi-codegen/gin-middleware"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -69,8 +75,17 @@ func main() {
 	logLevel := zerolog.InfoLevel
 	ctx := logging.ZeroLogConfiguration(logFile, &logLevel, serviceName, service_version.ServiceVersion)
 	log := zerolog.Ctx(ctx)
+	log.Info().Msg("Loaded .env file and initialized logging")
 
-	log.Info().Msg("Loaded .env file")
+	shutdown, err := tracing.InitTracer(ctx, serviceName, service_version.ServiceVersion, env.GetTempoURI(ctx))
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize tracer")
+	}
+	defer func() {
+		if err := shutdown(ctx); err != nil {
+			log.Error().Err(err).Msg("Error shutting down tracer")
+		}
+	}()
 
 	authZMiddleware := authz.NewAuthZ(env.GetAPIKey(ctx))
 
@@ -250,7 +265,9 @@ func main() {
 
 	router := gin.New()
 
+	router.Use(otelgin.Middleware(serviceName))
 	router.Use(lmiddleware.InjectLogger(log))
+	router.Use(middleware.ZerologTraceMiddleware())
 
 	router.Use(gin.Recovery())
 	router.Use(lmiddleware.LoggingMiddleware())     // Your custom logging
@@ -286,7 +303,23 @@ func processBackgroundJob(
 	getService func(context.Context, string) (*model.Service, error),
 	serviceName string,
 ) {
-	log := zerolog.Ctx(ctx)
+	tracer := otel.Tracer(fmt.Sprintf("%s/background", serviceName))
+
+	// One span for the overall job lifecycle
+	jobCtx, jobSpan := tracer.Start(ctx, "background.job",
+		trace.WithAttributes(attribute.String("service", serviceName)),
+	)
+	defer jobSpan.End()
+
+	// Enrich the logger with trace IDs for this goroutine
+	sc := jobSpan.SpanContext()
+	enrichedLog := zerolog.Ctx(jobCtx).With().
+		Str("traceID", sc.TraceID().String()).
+		Str("spanID", sc.SpanID().String()).
+		Logger()
+	jobCtx = enrichedLog.WithContext(jobCtx)
+	log := zerolog.Ctx(jobCtx)
+
 	log.Info().
 		Str("service", serviceName).
 		Msg("New service created, starting background processing")
@@ -297,23 +330,31 @@ func processBackgroundJob(
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-jobCtx.Done():
 			log.Info().Str("service", serviceName).
 				Msg("Stopping background processing due to context cancel")
 			return
 		case <-ticker.C:
-			service, err := getService(ctx, serviceName)
+			tickCtx, tickSpan := tracer.Start(jobCtx, "background.tick")
+
+			service, err := getService(tickCtx, serviceName)
 			if err != nil {
 				if _, ok := err.(*ierr.NotFoundError); ok {
 					log.Info().Str("service", serviceName).
 						Msg("Service deleted, stopping background processing")
+					tickSpan.End()
 					return
 				}
 				log.Error().Err(err).Str("service", serviceName).
 					Msg("Failed to get service for background processing")
+				tickSpan.RecordError(err)
+				tickSpan.SetStatus(codes.Error, err.Error())
+				tickSpan.End()
 				continue
 			}
+
 			func() {
+				defer tickSpan.End()
 				defer func() {
 					if r := recover(); r != nil {
 						log.Error().
@@ -321,11 +362,14 @@ func processBackgroundJob(
 							Interface("panic", r).
 							Bytes("stack", debug.Stack()).
 							Msg("Panic recovered in background processor")
+						tickSpan.SetStatus(codes.Error, "panic recovered")
 					}
 				}()
-				if err := backgroundProcessor.ProcessService(ctx, service); err != nil {
+				if err := backgroundProcessor.ProcessService(tickCtx, service); err != nil {
 					log.Error().Err(err).Str("service", serviceName).
 						Msg("Error when processing service")
+					tickSpan.RecordError(err)
+					tickSpan.SetStatus(codes.Error, err.Error())
 				}
 			}()
 		}
