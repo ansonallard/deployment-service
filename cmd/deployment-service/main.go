@@ -305,73 +305,83 @@ func processBackgroundJob(
 ) {
 	tracer := otel.Tracer(fmt.Sprintf("%s/background", serviceName))
 
-	// One span for the overall job lifecycle
-	jobCtx, jobSpan := tracer.Start(ctx, "background.job",
-		trace.WithAttributes(attribute.String("service", serviceName)),
-	)
-	defer jobSpan.End()
-
-	// Enrich the logger with trace IDs for this goroutine
-	sc := jobSpan.SpanContext()
-	enrichedLog := zerolog.Ctx(jobCtx).With().
-		Str("traceID", sc.TraceID().String()).
-		Str("spanID", sc.SpanID().String()).
-		Logger()
-	jobCtx = enrichedLog.WithContext(jobCtx)
-	log := zerolog.Ctx(jobCtx)
-
+	log := zerolog.Ctx(ctx)
 	log.Info().
 		Str("service", serviceName).
 		Msg("New service created, starting background processing")
 
-	// Create ticker for repeating processing
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-jobCtx.Done():
+		case <-ctx.Done():
 			log.Info().Str("service", serviceName).
 				Msg("Stopping background processing due to context cancel")
 			return
+
 		case <-ticker.C:
-			tickCtx, tickSpan := tracer.Start(jobCtx, "background.tick")
-
-			service, err := getService(tickCtx, serviceName)
-			if err != nil {
-				if _, ok := err.(*ierr.NotFoundError); ok {
-					log.Info().Str("service", serviceName).
-						Msg("Service deleted, stopping background processing")
-					tickSpan.End()
-					return
-				}
-				log.Error().Err(err).Str("service", serviceName).
-					Msg("Failed to get service for background processing")
-				tickSpan.RecordError(err)
-				tickSpan.SetStatus(codes.Error, err.Error())
-				tickSpan.End()
-				continue
+			if shouldStop := runTick(ctx, tracer, backgroundProcessor, getService, serviceName); shouldStop {
+				return
 			}
-
-			func() {
-				defer tickSpan.End()
-				defer func() {
-					if r := recover(); r != nil {
-						log.Error().
-							Str("service", serviceName).
-							Interface("panic", r).
-							Bytes("stack", debug.Stack()).
-							Msg("Panic recovered in background processor")
-						tickSpan.SetStatus(codes.Error, "panic recovered")
-					}
-				}()
-				if err := backgroundProcessor.ProcessService(tickCtx, service); err != nil {
-					log.Error().Err(err).Str("service", serviceName).
-						Msg("Error when processing service")
-					tickSpan.RecordError(err)
-					tickSpan.SetStatus(codes.Error, err.Error())
-				}
-			}()
 		}
 	}
+}
+
+// runTick runs a single processing tick as its own root trace.
+// Returns true if the background job should stop entirely.
+func runTick(
+	parentCtx context.Context,
+	tracer trace.Tracer,
+	backgroundProcessor backgroundprocessor.BackgroundProcesseror,
+	getService func(context.Context, string) (*model.Service, error),
+	serviceName string,
+) (stop bool) {
+	tickCtx, tickSpan := tracer.Start(parentCtx, "background.tick",
+		trace.WithAttributes(attribute.String("service", serviceName)),
+	)
+	defer tickSpan.End()
+
+	sc := tickSpan.SpanContext()
+	enrichedLog := zerolog.Ctx(tickCtx).With().
+		Str("traceID", sc.TraceID().String()).
+		Str("spanID", sc.SpanID().String()).
+		Logger()
+	tickCtx = enrichedLog.WithContext(tickCtx)
+	log := zerolog.Ctx(tickCtx)
+
+	service, err := getService(tickCtx, serviceName)
+	if err != nil {
+		if _, ok := err.(*ierr.NotFoundError); ok {
+			log.Info().Str("service", serviceName).
+				Msg("Service deleted, stopping background processing")
+			return true
+		}
+
+		log.Error().Err(err).Str("service", serviceName).
+			Msg("Failed to get service for background processing")
+		tickSpan.RecordError(err)
+		tickSpan.SetStatus(codes.Error, err.Error())
+		return false
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error().
+				Str("service", serviceName).
+				Interface("panic", r).
+				Bytes("stack", debug.Stack()).
+				Msg("Panic recovered in background processor")
+			tickSpan.SetStatus(codes.Error, "panic recovered")
+		}
+	}()
+
+	if err := backgroundProcessor.ProcessService(tickCtx, service); err != nil {
+		log.Error().Err(err).Str("service", serviceName).
+			Msg("Error when processing service")
+		tickSpan.RecordError(err)
+		tickSpan.SetStatus(codes.Error, err.Error())
+	}
+
+	return false
 }
