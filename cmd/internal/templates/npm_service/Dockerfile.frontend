@@ -8,7 +8,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN --mount=type=secret,id=npmrc,target=/root/.npmrc \
+    npm ci
 
 # Copy source code
 COPY src ./src
