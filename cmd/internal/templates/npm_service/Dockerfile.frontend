@@ -15,6 +15,7 @@ RUN --mount=type=secret,id=npmrc,target=/root/.npmrc \
 COPY src ./src
 COPY public ./public
 COPY .eslint* ./
+COPY eslint* ./
 COPY tsconfig.json ./
 
 # Build production app
