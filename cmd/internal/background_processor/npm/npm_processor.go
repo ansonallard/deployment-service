@@ -14,7 +14,12 @@ import (
 	npmservice "github.com/ansonallard/deployment-service/cmd/internal/templates/npm_service"
 	"github.com/rs/zerolog/log"
 	"github.com/tidwall/sjson"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("deployment-service.processor.npm")
 
 const (
 	packageJSONFilePath   = "package.json"
@@ -66,6 +71,14 @@ func NewNPMServiceProcessor(config NPMServiceProcessorConfig) (NPMServiceProcess
 }
 
 func (nsp *npmServiceProcessor) SetPackageJsonVersion(service *model.Service, version *semver.Version) error {
+	_, span := tracer.Start(context.Background(), "npm.set_version",
+		trace.WithAttributes(
+			attribute.String("service.name", service.Name.Name),
+			attribute.String("version", version.String()),
+		),
+	)
+	defer span.End()
+
 	if _, err := os.Stat(service.GitRepoFilePath); err != nil {
 		return err
 	}
@@ -95,6 +108,14 @@ func (nsp *npmServiceProcessor) getPackageJsonPath(gitRepoFilePath string) strin
 func (nsp *npmServiceProcessor) BuildNpmService(
 	ctx context.Context, service *model.Service, nextVersion *semver.Version,
 ) error {
+	ctx, span := tracer.Start(ctx, "npm.build",
+		trace.WithAttributes(
+			attribute.String("service.name", service.Name.Name),
+			attribute.String("version", nextVersion.String()),
+		),
+	)
+	defer span.End()
+
 	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Building image")
 
 	if err := nsp.writeArtifacts(service); err != nil {

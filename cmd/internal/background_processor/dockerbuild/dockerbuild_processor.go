@@ -8,7 +8,12 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/internal/model"
 	"github.com/ansonallard/deployment-service/cmd/internal/releaser"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("deployment-service.processor.dockerbuild")
 
 type DockerBuildProcessor interface {
 	BuildAndPushDockerImage(
@@ -36,6 +41,14 @@ func NewDockerBuildProcessor(config DockerBuildProcessorConfig) (DockerBuildProc
 func (dbp *dockerBuildProcessor) BuildAndPushDockerImage(
 	ctx context.Context, service *model.Service, nextVersion *semver.Version,
 ) error {
+	ctx, span := tracer.Start(ctx, "dockerbuild.build_and_push",
+		trace.WithAttributes(
+			attribute.String("service.name", service.Name.Name),
+			attribute.String("version", nextVersion.String()),
+		),
+	)
+	defer span.End()
+
 	log := zerolog.Ctx(ctx)
 	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Building docker image")
 

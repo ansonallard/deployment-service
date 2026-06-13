@@ -19,7 +19,12 @@ import (
 	"github.com/moby/moby/api/types/registry"
 	"github.com/moby/moby/client"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("deployment-service.releaser")
 
 const LatestTag = "latest"
 
@@ -76,6 +81,15 @@ func NewDockerReleaser(config DockerReleaserConfig) (DockerReleaser, error) {
 
 // BuildImage builds the Docker image using the official Docker SDK.
 func (r *dockerReleaser) BuildImage(ctx context.Context, repositoryPath, dockerfilePath string, tags []string) error {
+	ctx, span := tracer.Start(ctx, "releaser.build_image",
+		trace.WithAttributes(
+			attribute.String("repository_path", repositoryPath),
+			attribute.String("dockerfile", dockerfilePath),
+			attribute.StringSlice("tags", tags),
+		),
+	)
+	defer span.End()
+
 	// Create build context tarball
 	buildCtx, err := CreateTar(repositoryPath)
 	if err != nil {
@@ -136,6 +150,20 @@ func (r *dockerReleaser) BuildImageWithSecrets(
 	tags []string,
 	secrets map[string][]byte,
 ) error {
+	secretNames := make([]string, 0, len(secrets))
+	for k := range secrets {
+		secretNames = append(secretNames, k)
+	}
+	ctx, span := tracer.Start(ctx, "releaser.build_image_with_secrets",
+		trace.WithAttributes(
+			attribute.String("repository_path", repositoryPath),
+			attribute.String("dockerfile", dockerfilePath),
+			attribute.StringSlice("tags", tags),
+			attribute.StringSlice("secrets", secretNames),
+		),
+	)
+	defer span.End()
+
 	log := zerolog.Ctx(ctx)
 
 	log.Info().
@@ -256,6 +284,14 @@ func CreateTar(dir string) (io.ReadCloser, error) {
 
 // PushImage pushes the built Docker image to the registry.
 func (r *dockerReleaser) PushImage(ctx context.Context, serviceName string, tag string) error {
+	ctx, span := tracer.Start(ctx, "releaser.push_image",
+		trace.WithAttributes(
+			attribute.String("service.name", serviceName),
+			attribute.String("tag", tag),
+		),
+	)
+	defer span.End()
+
 	log := zerolog.Ctx(ctx)
 
 	log.Info().
@@ -308,6 +344,11 @@ func (r *dockerReleaser) PushImage(ctx context.Context, serviceName string, tag 
 
 // RemoveImage removes a Docker image from the local system
 func (r *dockerReleaser) RemoveImage(ctx context.Context, tag string) error {
+	ctx, span := tracer.Start(ctx, "releaser.remove_image",
+		trace.WithAttributes(attribute.String("tag", tag)),
+	)
+	defer span.End()
+
 	log := zerolog.Ctx(ctx)
 
 	log.Info().

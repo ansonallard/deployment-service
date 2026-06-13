@@ -10,7 +10,12 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/internal/model"
 	"github.com/ansonallard/deployment-service/cmd/internal/service"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("deployment-service.processor.dockercompose")
 
 type DockerComposeProcessor interface {
 	DeployDockerComposeApplication(
@@ -61,6 +66,14 @@ func (dcp *dockerComposeProcessor) writeEnvFiles(ctx context.Context, service *m
 func (dcp *dockerComposeProcessor) DeployDockerComposeApplication(
 	ctx context.Context, service *model.Service, nextVersion *semver.Version,
 ) error {
+	ctx, span := tracer.Start(ctx, "dockercompose.deploy",
+		trace.WithAttributes(
+			attribute.String("service.name", service.Name.Name),
+			attribute.String("version", nextVersion.String()),
+		),
+	)
+	defer span.End()
+
 	log := zerolog.Ctx(ctx)
 	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Writing env files")
 
@@ -79,6 +92,11 @@ func (dcp *dockerComposeProcessor) DeployDockerComposeApplication(
 func (dcp *dockerComposeProcessor) RefreshDockerComposeApplication(
 	ctx context.Context, service *model.Service,
 ) error {
+	ctx, span := tracer.Start(ctx, "dockercompose.refresh",
+		trace.WithAttributes(attribute.String("service.name", service.Name.Name)),
+	)
+	defer span.End()
+
 	log := zerolog.Ctx(ctx)
 	log.Debug().Str("service", service.Name.Name).Msg("Pulling latest images")
 

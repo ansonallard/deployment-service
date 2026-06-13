@@ -8,7 +8,12 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/internal/repo"
 	"github.com/ansonallard/go_utils/openapi/ierr"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("deployment-service.service")
 
 type DeploymentService interface {
 	Create(ctx context.Context, service *model.Service) error
@@ -42,6 +47,11 @@ func NewDeploymentService(config DeploymentServiceConfig) (DeploymentService, er
 }
 
 func (ds *deploymentService) Create(ctx context.Context, service *model.Service) error {
+	ctx, span := tracer.Start(ctx, "service.create",
+		trace.WithAttributes(attribute.String("service.name", service.Name.Name)),
+	)
+	defer span.End()
+
 	existingService, err := ds.Get(ctx, service.Name.Name)
 	if err != nil {
 		switch err.(type) {
@@ -64,22 +74,45 @@ func (ds *deploymentService) Create(ctx context.Context, service *model.Service)
 }
 
 func (ds *deploymentService) Get(ctx context.Context, serviceName string) (*model.Service, error) {
+	ctx, span := tracer.Start(ctx, "service.get",
+		trace.WithAttributes(attribute.String("service.name", serviceName)),
+	)
+	defer span.End()
+
 	return ds.repo.Get(ctx, serviceName)
 }
 
 func (ds *deploymentService) List(ctx context.Context, maxResults int, nextToken string) ([]*model.Service, error) {
+	ctx, span := tracer.Start(ctx, "service.list",
+		trace.WithAttributes(attribute.Int("max_results", maxResults)),
+	)
+	defer span.End()
+
 	return ds.repo.List(ctx, maxResults, nextToken)
 }
 
 func (ds *deploymentService) Update(ctx context.Context, name string, ifMatch string, partial *model.Service) (*model.Service, error) {
+	ctx, span := tracer.Start(ctx, "service.update",
+		trace.WithAttributes(attribute.String("service.name", name)),
+	)
+	defer span.End()
+
 	return ds.repo.Update(ctx, name, ifMatch, partial)
 }
 
 func (ds *deploymentService) Delete(ctx context.Context, serviceName string) error {
+	ctx, span := tracer.Start(ctx, "service.delete",
+		trace.WithAttributes(attribute.String("service.name", serviceName)),
+	)
+	defer span.End()
+
 	return ds.repo.Delete(ctx, serviceName)
 }
 
 func (ds *deploymentService) CollectExistingServicesForBackgroundProcessing(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "service.collect_existing")
+	defer span.End()
+
 	services, err := ds.List(ctx, 100, "")
 	if err != nil {
 		return err

@@ -14,7 +14,12 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/internal/releaser"
 	goservicetemplate "github.com/ansonallard/deployment-service/cmd/internal/templates/go_service"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("deployment-service.processor.go")
 
 const versionFileName = "version.txt"
 const dockerfileName = "Dockerfile"
@@ -56,6 +61,14 @@ func NewGoServiceProcessor(config GoServiceProcessorConfig) (GoServiceProcessor,
 }
 
 func (gsp *goServiceProcessor) SetVersionFile(service *model.Service, version *semver.Version) error {
+	_, span := tracer.Start(context.Background(), "go.set_version",
+		trace.WithAttributes(
+			attribute.String("service.name", service.Name.Name),
+			attribute.String("version", version.String()),
+		),
+	)
+	defer span.End()
+
 	var versionFilePath string
 	err := filepath.WalkDir(service.GitRepoFilePath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -98,6 +111,14 @@ func (gsp *goServiceProcessor) writeDockerfile(service *model.Service) error {
 func (gsp *goServiceProcessor) BuildGoService(
 	ctx context.Context, service *model.Service, nextVersion *semver.Version,
 ) error {
+	ctx, span := tracer.Start(ctx, "go.build",
+		trace.WithAttributes(
+			attribute.String("service.name", service.Name.Name),
+			attribute.String("version", nextVersion.String()),
+		),
+	)
+	defer span.End()
+
 	log := zerolog.Ctx(ctx)
 	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Building Go service image")
 

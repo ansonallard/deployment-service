@@ -13,7 +13,13 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("deployment-service.repo")
 
 type DeploymentService interface {
 	Create(ctx context.Context, service *model.Service) error
@@ -63,6 +69,11 @@ type deploymentService struct {
 }
 
 func (ds *deploymentService) Create(ctx context.Context, service *model.Service) error {
+	ctx, span := tracer.Start(ctx, "repo.create",
+		trace.WithAttributes(attribute.String("service.name", service.Name.Name)),
+	)
+	defer span.End()
+
 	servicePath := ds.getServiceFilePath(service.Name.Name)
 
 	if err := os.MkdirAll(servicePath, os.ModePerm); err != nil {
@@ -89,13 +100,25 @@ func (ds *deploymentService) Create(ctx context.Context, service *model.Service)
 		return fmt.Errorf("failed to load ssh key: %w", err)
 	}
 
-	_, err = ds.gitClient.Clone(ctx, gitRepoPath, &git.CloneOptions{
+	cloneCtx, cloneSpan := tracer.Start(ctx, "repo.git.clone",
+		trace.WithAttributes(
+			attribute.String("service.name", service.Name.Name),
+			attribute.String("git.url", service.GitSSHUrl),
+			attribute.String("git.branch", service.GitBranchName),
+		),
+	)
+	_, err = ds.gitClient.Clone(cloneCtx, gitRepoPath, &git.CloneOptions{
 		URL:           service.GitSSHUrl,
 		ReferenceName: plumbing.ReferenceName(service.GitBranchName),
 		SingleBranch:  true,
 		Auth:          sshAuth,
 		RemoteName:    ds.gitRepoOrigin,
 	})
+	if err != nil {
+		cloneSpan.RecordError(err)
+		cloneSpan.SetStatus(codes.Error, err.Error())
+	}
+	cloneSpan.End()
 	if err != nil {
 		if err := os.RemoveAll(servicePath); err != nil {
 			return fmt.Errorf("failed to clean up service file")
@@ -107,6 +130,11 @@ func (ds *deploymentService) Create(ctx context.Context, service *model.Service)
 }
 
 func (ds *deploymentService) Get(ctx context.Context, serviceName string) (*model.Service, error) {
+	ctx, span := tracer.Start(ctx, "repo.get",
+		trace.WithAttributes(attribute.String("service.name", serviceName)),
+	)
+	defer span.End()
+
 	servicePath := ds.getServiceFilePath(serviceName)
 	file, err := os.Stat(servicePath)
 	if err != nil {
@@ -128,6 +156,11 @@ func (ds *deploymentService) Get(ctx context.Context, serviceName string) (*mode
 }
 
 func (ds *deploymentService) List(ctx context.Context, maxResults int, nextToken string) ([]*model.Service, error) {
+	ctx, span := tracer.Start(ctx, "repo.list",
+		trace.WithAttributes(attribute.Int("max_results", maxResults)),
+	)
+	defer span.End()
+
 	services := make([]*model.Service, 0)
 
 	dirEntries, err := os.ReadDir(ds.filePath)
@@ -154,6 +187,13 @@ func (ds *deploymentService) List(ctx context.Context, maxResults int, nextToken
 }
 
 func (ds *deploymentService) Update(ctx context.Context, name string, ifMatch string, partial *model.Service) (*model.Service, error) {
+	ctx, span := tracer.Start(ctx, "repo.update",
+		trace.WithAttributes(
+			attribute.String("service.name", name),
+		),
+	)
+	defer span.End()
+
 	current, err := ds.Get(ctx, name)
 	if err != nil {
 		return nil, err
@@ -180,6 +220,11 @@ func (ds *deploymentService) Update(ctx context.Context, name string, ifMatch st
 }
 
 func (ds *deploymentService) Delete(ctx context.Context, serviceName string) error {
+	ctx, span := tracer.Start(ctx, "repo.delete",
+		trace.WithAttributes(attribute.String("service.name", serviceName)),
+	)
+	defer span.End()
+
 	servicePath := ds.getServiceFilePath(serviceName)
 	if _, err := os.Stat(servicePath); err != nil {
 		return &ierr.NotFoundError{}

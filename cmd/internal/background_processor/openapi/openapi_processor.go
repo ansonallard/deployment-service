@@ -18,7 +18,12 @@ import (
 	typescriptclient "github.com/ansonallard/deployment-service/cmd/internal/templates/typescript_client"
 	yaml "github.com/oasdiff/yaml3"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("deployment-service.processor.openapi")
 
 type OpenAPIProcessor interface {
 	SetOpenApiYamlVersion(service *model.Service, version *semver.Version) error
@@ -103,6 +108,14 @@ type openAPIProcessor struct {
 }
 
 func (op *openAPIProcessor) SetOpenApiYamlVersion(service *model.Service, version *semver.Version) error {
+	_, span := tracer.Start(context.Background(), "openapi.set_version",
+		trace.WithAttributes(
+			attribute.String("service.name", service.Name.Name),
+			attribute.String("version", version.String()),
+		),
+	)
+	defer span.End()
+
 	if _, err := os.Stat(service.GitRepoFilePath); err != nil {
 		return err
 	}
@@ -174,6 +187,14 @@ func (op *openAPIProcessor) BuildAndDeployOpenAPIClient(
 	service *model.Service,
 	nextVersion *semver.Version,
 ) error {
+	ctx, span := tracer.Start(ctx, "openapi.build",
+		trace.WithAttributes(
+			attribute.String("service.name", service.Name.Name),
+			attribute.String("version", nextVersion.String()),
+		),
+	)
+	defer span.End()
+
 	// Validate OpenAPI configuration
 	if service.Configuration.OpenAPI == nil || service.Configuration.OpenAPI.OpenAPI == nil {
 		return fmt.Errorf("openAPI configuration is nil")

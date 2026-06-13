@@ -20,7 +20,13 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/storer"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("deployment-service.background")
 
 const (
 	ciCommitMsgFormat = "ci: Release version %s"
@@ -113,10 +119,17 @@ type backgroundProcessor struct {
 func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *model.Service) error {
 	log := zerolog.Ctx(ctx)
 
-	hasNewCommit, err := bp.hasNewCommit(service)
+	_, checkSpan := tracer.Start(ctx, "background.has_new_commit",
+		trace.WithAttributes(attribute.String("service.name", service.Name.Name)),
+	)
+	hasNewCommit, err := bp.hasNewCommit(ctx, service)
 	if err != nil {
+		checkSpan.RecordError(err)
+		checkSpan.SetStatus(codes.Error, err.Error())
+		checkSpan.End()
 		return err
 	}
+	checkSpan.End()
 	if !hasNewCommit {
 		if service.Configuration.DockerCompose != nil && service.Configuration.DockerCompose.RefreshImages {
 			return bp.dockerComposeProcessor.RefreshDockerComposeApplication(ctx, service)
@@ -124,27 +137,46 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 		return nil
 	}
 
-	nextVersion, err := bp.versioner.CalculateNextVersion(ctx, service.GitRepoFilePath)
+	calcCtx, calcSpan := tracer.Start(ctx, "background.calculate_next_version",
+		trace.WithAttributes(attribute.String("service.name", service.Name.Name)),
+	)
+	nextVersion, err := bp.versioner.CalculateNextVersion(calcCtx, service.GitRepoFilePath)
 	if err != nil {
+		calcSpan.RecordError(err)
+		calcSpan.SetStatus(codes.Error, err.Error())
+		calcSpan.End()
 		return err
 	}
+	calcSpan.End()
 	log.Info().Interface("semver", nextVersion).Str("nextVersion", nextVersion.String()).Msg("Next version")
 
 	serviceConfiguration := service.Configuration
+	_, setVerSpan := tracer.Start(ctx, "background.set_version",
+		trace.WithAttributes(attribute.String("service.name", service.Name.Name)),
+	)
 	switch {
 	case serviceConfiguration.Npm != nil:
 		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Npm Service")
 		if err := bp.npmServiceProcessor.SetPackageJsonVersion(service, nextVersion); err != nil {
+			setVerSpan.RecordError(err)
+			setVerSpan.SetStatus(codes.Error, err.Error())
+			setVerSpan.End()
 			return err
 		}
 	case serviceConfiguration.OpenAPI != nil:
 		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("OpenAPI Service")
 		if err := bp.openAPIProcessor.SetOpenApiYamlVersion(service, nextVersion); err != nil {
+			setVerSpan.RecordError(err)
+			setVerSpan.SetStatus(codes.Error, err.Error())
+			setVerSpan.End()
 			return err
 		}
 	case serviceConfiguration.Go != nil:
 		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Go Service")
 		if err := bp.goServiceProcessor.SetVersionFile(service, nextVersion); err != nil {
+			setVerSpan.RecordError(err)
+			setVerSpan.SetStatus(codes.Error, err.Error())
+			setVerSpan.End()
 			return err
 		}
 	case serviceConfiguration.DockerCompose != nil:
@@ -152,6 +184,7 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 	case serviceConfiguration.DockerBuild != nil:
 		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Docker Build Service")
 	}
+	setVerSpan.End()
 
 	if !bp.isDevMode {
 		var skipStaging bool
@@ -159,19 +192,25 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 			skipStaging = true
 		}
 		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Commiting changes")
-		if err := bp.commitChanges(service.GitRepoFilePath, nextVersion, skipStaging); err != nil {
+		if err := bp.commitChanges(ctx, service.GitRepoFilePath, nextVersion, skipStaging); err != nil {
 			return err
 		}
 
 		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Tagging and pushing changes")
-		if err := bp.tagAndPushChanges(service.GitRepoFilePath, *nextVersion); err != nil {
+		if err := bp.tagAndPushChanges(ctx, service.GitRepoFilePath, *nextVersion); err != nil {
 			return err
 		}
 	}
 
+	buildCtx, buildSpan := tracer.Start(ctx, "background.build",
+		trace.WithAttributes(attribute.String("service.name", service.Name.Name)),
+	)
 	switch {
 	case serviceConfiguration.Npm != nil && serviceConfiguration.Npm.Service != nil:
-		if err := bp.npmServiceProcessor.BuildNpmService(ctx, service, nextVersion); err != nil {
+		if err := bp.npmServiceProcessor.BuildNpmService(buildCtx, service, nextVersion); err != nil {
+			buildSpan.RecordError(err)
+			buildSpan.SetStatus(codes.Error, err.Error())
+			buildSpan.End()
 			return err
 		}
 	case serviceConfiguration.OpenAPI != nil:
@@ -180,7 +219,10 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 			Str("nextVersion", nextVersion.String()).
 			Msg("Building and publishing OpenAPI npm client")
 
-		if err := bp.openAPIProcessor.BuildAndDeployOpenAPIClient(ctx, service, nextVersion); err != nil {
+		if err := bp.openAPIProcessor.BuildAndDeployOpenAPIClient(buildCtx, service, nextVersion); err != nil {
+			buildSpan.RecordError(err)
+			buildSpan.SetStatus(codes.Error, err.Error())
+			buildSpan.End()
 			return fmt.Errorf("failed to build and deploy OpenAPI npm client: %w", err)
 		}
 	case serviceConfiguration.Go != nil && serviceConfiguration.Go.Service != nil:
@@ -189,7 +231,10 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 			Str("nextVersion", nextVersion.String()).
 			Msg("Building Go service")
 
-		if err := bp.goServiceProcessor.BuildGoService(ctx, service, nextVersion); err != nil {
+		if err := bp.goServiceProcessor.BuildGoService(buildCtx, service, nextVersion); err != nil {
+			buildSpan.RecordError(err)
+			buildSpan.SetStatus(codes.Error, err.Error())
+			buildSpan.End()
 			return fmt.Errorf("failed to build Go service: %w", err)
 		}
 	case serviceConfiguration.DockerCompose != nil:
@@ -198,7 +243,10 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 			Str("nextVersion", nextVersion.String()).
 			Msg("Deploying Docker Compose application")
 
-		if err := bp.dockerComposeProcessor.DeployDockerComposeApplication(ctx, service, nextVersion); err != nil {
+		if err := bp.dockerComposeProcessor.DeployDockerComposeApplication(buildCtx, service, nextVersion); err != nil {
+			buildSpan.RecordError(err)
+			buildSpan.SetStatus(codes.Error, err.Error())
+			buildSpan.End()
 			return fmt.Errorf("failed to deploy Docker Compose application: %w", err)
 		}
 	case serviceConfiguration.DockerBuild != nil:
@@ -207,7 +255,10 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 			Str("nextVersion", nextVersion.String()).
 			Msg("Building and pushing Docker image")
 
-		if err := bp.dockerBuildProcessor.BuildAndPushDockerImage(ctx, service, nextVersion); err != nil {
+		if err := bp.dockerBuildProcessor.BuildAndPushDockerImage(buildCtx, service, nextVersion); err != nil {
+			buildSpan.RecordError(err)
+			buildSpan.SetStatus(codes.Error, err.Error())
+			buildSpan.End()
 			return fmt.Errorf("failed to build and push Docker image: %w", err)
 		}
 	default:
@@ -216,11 +267,17 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 			Str("nextVersion", nextVersion.String()).
 			Msg("Service type not supported")
 	}
+	buildSpan.End()
 
 	return nil
 }
 
-func (bp *backgroundProcessor) hasNewCommit(service *model.Service) (bool, error) {
+func (bp *backgroundProcessor) hasNewCommit(ctx context.Context, service *model.Service) (bool, error) {
+	ctx, span := tracer.Start(ctx, "background.pull_and_check",
+		trace.WithAttributes(attribute.String("service.name", service.Name.Name)),
+	)
+	defer span.End()
+
 	repo, err := git.PlainOpen(service.GitRepoFilePath)
 	if err != nil {
 		return false, fmt.Errorf("failed to open repo: %w", err)
@@ -293,7 +350,15 @@ func (bp *backgroundProcessor) hasNewCommit(service *model.Service) (bool, error
 	return !foundSemver, nil
 }
 
-func (bp *backgroundProcessor) commitChanges(repoPath string, version *semver.Version, skipStaging bool) error {
+func (bp *backgroundProcessor) commitChanges(ctx context.Context, repoPath string, version *semver.Version, skipStaging bool) error {
+	ctx, span := tracer.Start(ctx, "background.commit",
+		trace.WithAttributes(
+			attribute.String("repo_path", repoPath),
+			attribute.String("version", version.String()),
+		),
+	)
+	defer span.End()
+
 	repo, err := git.PlainOpen(repoPath)
 	if err != nil {
 		return fmt.Errorf("failed to open repo: %w", err)
@@ -330,7 +395,15 @@ func (bp *backgroundProcessor) commitChanges(repoPath string, version *semver.Ve
 	return nil
 }
 
-func (bp *backgroundProcessor) tagAndPushChanges(repoPath string, version semver.Version) error {
+func (bp *backgroundProcessor) tagAndPushChanges(ctx context.Context, repoPath string, version semver.Version) error {
+	ctx, span := tracer.Start(ctx, "background.tag",
+		trace.WithAttributes(
+			attribute.String("repo_path", repoPath),
+			attribute.String("version", version.String()),
+		),
+	)
+	defer span.End()
+
 	repo, err := git.PlainOpen(repoPath)
 	if err != nil {
 		return fmt.Errorf("failed to open repo: %w", err)

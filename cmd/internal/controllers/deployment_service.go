@@ -7,7 +7,12 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/internal/api"
 	"github.com/ansonallard/deployment-service/cmd/internal/model"
 	"github.com/ansonallard/deployment-service/cmd/internal/service"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("deployment-service.controllers")
 
 type DeploymentServiceController interface {
 	// (GET /services)
@@ -44,6 +49,11 @@ func NewDeploymentServiceController(config DeploymentServiceControllerConfig) (D
 }
 
 func (ds *deploymentServiceController) CreateService(ctx context.Context, request api.CreateServiceRequestObject) (api.CreateServiceResponseObject, error) {
+	ctx, span := tracer.Start(ctx, "controllers.create",
+		trace.WithAttributes(attribute.String("service.name", request.Body.Service.Name)),
+	)
+	defer span.End()
+
 	service := new(model.Service)
 	if err := service.FromCreateRequest(request.Body); err != nil {
 		return nil, err
@@ -66,6 +76,11 @@ func (ds *deploymentServiceController) CreateService(ctx context.Context, reques
 }
 
 func (ds *deploymentServiceController) GetService(ctx context.Context, request api.GetServiceRequestObject) (api.GetServiceResponseObject, error) {
+	ctx, span := tracer.Start(ctx, "controllers.get",
+		trace.WithAttributes(attribute.String("service.name", string(request.Name))),
+	)
+	defer span.End()
+
 	service, err := ds.service.Get(ctx, request.Name)
 	if err != nil {
 		return nil, err
@@ -86,6 +101,9 @@ func (ds *deploymentServiceController) GetService(ctx context.Context, request a
 }
 
 func (ds *deploymentServiceController) ListServices(ctx context.Context, request api.ListServicesRequestObject) (api.ListServicesResponseObject, error) {
+	ctx, span := tracer.Start(ctx, "controllers.list")
+	defer span.End()
+
 	maxResults, nextToken := model.FromListRequest(request.Params)
 
 	services, err := ds.service.List(ctx, maxResults, nextToken)
@@ -110,6 +128,11 @@ func (ds *deploymentServiceController) ListServices(ctx context.Context, request
 }
 
 func (ds *deploymentServiceController) UpdateService(ctx context.Context, request api.UpdateServiceRequestObject) (api.UpdateServiceResponseObject, error) {
+	ctx, span := tracer.Start(ctx, "controllers.update",
+		trace.WithAttributes(attribute.String("service.name", string(request.Name))),
+	)
+	defer span.End()
+
 	partial := new(model.Service)
 	if err := partial.FromUpdateRequest(request.Body); err != nil {
 		return nil, err
@@ -136,6 +159,11 @@ func (ds *deploymentServiceController) UpdateService(ctx context.Context, reques
 }
 
 func (ds *deploymentServiceController) DeleteService(ctx context.Context, request api.DeleteServiceRequestObject) (api.DeleteServiceResponseObject, error) {
+	ctx, span := tracer.Start(ctx, "controllers.delete",
+		trace.WithAttributes(attribute.String("service.name", string(request.Name))),
+	)
+	defer span.End()
+
 	if err := ds.service.Delete(ctx, request.Name); err != nil {
 		return nil, err
 	}

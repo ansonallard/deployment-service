@@ -13,7 +13,13 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/storer"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("deployment-service.version")
 
 var baseSemVerVersion = semver.New(0, 0, 1, "", "")
 
@@ -29,6 +35,11 @@ func NewVersioner() *Versioner {
 // CalculateNextVersion walks commit history, checks conventional commits,
 // finds the last tag, and returns the next semantic version.
 func (v *Versioner) CalculateNextVersion(ctx context.Context, repoPath string) (*semver.Version, error) {
+	ctx, span := tracer.Start(ctx, "version.calculate",
+		trace.WithAttributes(attribute.String("repo_path", repoPath)),
+	)
+	defer span.End()
+
 	log := zerolog.Ctx(ctx)
 	log.Info().Msg("calculating next version")
 	var isMajor, isMinor, isPatch bool
@@ -92,6 +103,8 @@ func (v *Versioner) CalculateNextVersion(ctx context.Context, repoPath string) (
 		return nil
 	})
 	if err != nil && err != storer.ErrStop {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
