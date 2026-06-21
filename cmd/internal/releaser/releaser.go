@@ -13,9 +13,9 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"strings"
 
 	"github.com/Masterminds/semver/v3"
+	logwriter "github.com/ansonallard/deployment-service/cmd/internal/log_writer"
 	"github.com/moby/moby/api/types/registry"
 	"github.com/moby/moby/client"
 	"github.com/rs/zerolog"
@@ -122,22 +122,6 @@ const (
 	dockerBuildCommand = "build"
 )
 
-// Create a writer that logs each line to zerolog
-type zerologWriter struct {
-	logger zerolog.Logger
-	level  zerolog.Level
-}
-
-func (w *zerologWriter) Write(p []byte) (n int, err error) {
-	lines := strings.Split(strings.TrimSuffix(string(p), "\n"), "\n")
-	for _, line := range lines {
-		if line != "" {
-			w.logger.WithLevel(w.level).Msg(line)
-		}
-	}
-	return len(p), nil
-}
-
 // The Moby SDK doesn't support builds with secrets.
 // Docker doesn't expose buildkit directly either, which means
 // we can't use that SDK. For now, use a subprocess to build an
@@ -218,8 +202,8 @@ func (r *dockerReleaser) BuildImageWithSecrets(
 	// Create command
 	cmd := exec.CommandContext(ctx, r.pathToDockerCLI, args...)
 	// Pipe stdout and stderr to zerolog
-	cmd.Stdout = &zerologWriter{logger: *log, level: zerolog.InfoLevel}
-	cmd.Stderr = &zerologWriter{logger: *log, level: zerolog.InfoLevel}
+	cmd.Stdout = logwriter.NewZerologWriter(*log, zerolog.InfoLevel)
+	cmd.Stderr = logwriter.NewZerologWriter(*log, zerolog.InfoLevel)
 
 	// Execute the build
 	if err := cmd.Run(); err != nil {

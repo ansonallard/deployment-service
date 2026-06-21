@@ -82,7 +82,7 @@ func (dcp *dockerComposeProcessor) DeployDockerComposeApplication(
 	}
 
 	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Starting compose application")
-	if _, err := dcp.compose.Up(ctx, service.GitRepoFilePath, nextVersion); err != nil {
+	if err := dcp.compose.Up(ctx, service.GitRepoFilePath, nextVersion); err != nil {
 		return err
 	}
 
@@ -100,7 +100,7 @@ func (dcp *dockerComposeProcessor) RefreshDockerComposeApplication(
 	log := zerolog.Ctx(ctx)
 	log.Debug().Str("service", service.Name.Name).Msg("Pulling latest images")
 
-	if _, err := dcp.compose.Pull(ctx, service.GitRepoFilePath); err != nil {
+	if err := dcp.compose.Pull(ctx, service.GitRepoFilePath); err != nil {
 		return fmt.Errorf("failed to pull images: %w", err)
 	}
 
@@ -111,7 +111,7 @@ func (dcp *dockerComposeProcessor) RefreshDockerComposeApplication(
 	}
 
 	log.Debug().Str("service", service.Name.Name).Msg("Starting compose application")
-	if _, err := dcp.compose.Up(ctx, service.GitRepoFilePath, nil); err != nil {
+	if err := dcp.compose.Up(ctx, service.GitRepoFilePath, nil); err != nil {
 		return err
 	}
 
