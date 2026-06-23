@@ -99,8 +99,8 @@ func (r *runner) runComposeCommand(ctx context.Context, version *semver.Version,
 
 	log := zerolog.Ctx(ctx)
 	// Pipe stdout and stderr to zerolog
-	cmd.Stdout = logwriter.NewZerologWriter(*log, zerolog.InfoLevel)
-	cmd.Stderr = logwriter.NewZerologWriter(*log, zerolog.InfoLevel)
+	cmd.Stdout = logwriter.NewZerologWriter(*log, zerolog.DebugLevel)
+	cmd.Stderr = logwriter.NewZerologWriter(*log, zerolog.DebugLevel)
 
 	log.Debug().Str("command path", cmd.Path).Interface("args", cmd.Args).Msg(fmt.Sprintf("Running command: %s, %+v", cmd.Path, cmd.Args))
 	log.Debug().Str("Working directory:", cmd.Dir).Msg("Working dir")
