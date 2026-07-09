@@ -63,3 +63,33 @@ go get -x artifacts.ansonallard.com/ansonallard/<Package>@<Version>
 ```
 
 Where `<USER>` is your gitea user and `<PAT>` is your gitea user's PAT.
+
+## Configure separate docker daemon
+
+The build and deployment mechanisms must use separate docker daemons to avoid races.
+
+Here's how to set it up.
+
+1. Create a separate data dir, like `sudo mkdir -p /var/lib/<new-docker-socket>`
+2. Configure the following in `/etc/docker/<new-docker-socket>.json`
+
+```
+{
+  "data-root": "/mnt/Storage1/<new-docker-socket>/data_root",
+  "insecure-registries": [], // Applicable only to route around cloudflare bandwidth limits on free tier
+  "hosts": ["unix:///var/run/<new-docker-socket>sock"],
+  "pidfile": "/var/run/<new-docker-socket>.pid"
+}
+```
+
+3. Under `/lib/systemd/system`, run `sudo cp docker.service <new-docker-socket>.service`
+4. Edit the new service file, exit `ExecStart=/usr/bin/dockerd --config-file=/etc/docker/<new-docker-socket>.json`
+5. Run the following
+
+```
+sudo systemctl daemon-reload
+sudo systemctl enable <new-docker-socket>
+sudo systemctl start <new-docker-socket>
+```
+
+6. Access CLI via: `DOCKER_HOST=unix:///var/run/<new-docker-socket>.sock docker ps`

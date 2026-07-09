@@ -115,17 +115,9 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to instantiate deployment service controller")
 	}
 
-	dockerClientOpts := []client.Opt{
+	dockerClient, err := client.New(
 		client.FromEnv,
-		client.WithAPIVersionNegotiation(),
-	}
-
-	if env.GetDockerHome() != "" {
-		dockerClientOpts = append(dockerClientOpts, client.WithHost(env.GetDockerHome()))
-	}
-
-	dockerClient, err := client.NewClientWithOpts(
-		dockerClientOpts...,
+		client.WithHost(env.GetDockerHome(ctx)),
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("could not instantiate docker client")

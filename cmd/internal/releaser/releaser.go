@@ -48,6 +48,7 @@ type dockerReleaser struct {
 	artifactPrefix  string
 	registryAuth    *DockerAuth
 	pathToDockerCLI string
+	dockerHost      string
 }
 
 type DockerReleaserConfig struct {
@@ -55,6 +56,7 @@ type DockerReleaserConfig struct {
 	ArtifactPrefix  string
 	RegistryAuth    *DockerAuth
 	PathToDockerCLI string
+	DockerHost      string
 }
 
 func NewDockerReleaser(config DockerReleaserConfig) (DockerReleaser, error) {
@@ -70,12 +72,16 @@ func NewDockerReleaser(config DockerReleaserConfig) (DockerReleaser, error) {
 	if config.PathToDockerCLI == "" {
 		return nil, fmt.Errorf("pathToDockerCLi not provided")
 	}
+	if config.DockerHost == "" {
+		return nil, fmt.Errorf("dockerHost not provided")
+	}
 
 	return &dockerReleaser{
 		dockerclient:    config.DockerClient,
 		artifactPrefix:  config.ArtifactPrefix,
 		registryAuth:    config.RegistryAuth,
 		pathToDockerCLI: config.PathToDockerCLI,
+		dockerHost:      config.DockerHost,
 	}, nil
 }
 
@@ -199,8 +205,13 @@ func (r *dockerReleaser) BuildImageWithSecrets(
 		Strs("args", args).
 		Msg("Executing docker build command")
 
-	// Create command
+		// Create command
 	cmd := exec.CommandContext(ctx, r.pathToDockerCLI, args...)
+
+	cmd.Env = []string{
+		fmt.Sprintf("DOCKER_HOST=%s", r.dockerHost),
+	}
+
 	// Pipe stdout and stderr to zerolog
 	cmd.Stdout = logwriter.NewZerologWriter(*log, zerolog.InfoLevel)
 	cmd.Stderr = logwriter.NewZerologWriter(*log, zerolog.InfoLevel)
