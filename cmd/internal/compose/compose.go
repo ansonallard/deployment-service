@@ -118,7 +118,3 @@ func (r *runner) runComposeCommand(ctx context.Context, version *semver.Version,
 
 	return nil
 }
-
-func (r *runner) constructVersionEnvVar(version *semver.Version) string {
-	return fmt.Sprintf("%s=%s", dockerComposeVersionKey, version.String())
-}
