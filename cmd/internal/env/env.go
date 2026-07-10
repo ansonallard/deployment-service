@@ -111,6 +111,30 @@ func GetTempoURI(ctx context.Context) string {
 	return fmt.Sprintf("%s:%s", tempoHost, tempoPort)
 }
 
+func GetLogLevel() zerolog.Level {
+	logLevel := strings.ToLower(getOptionalEnvVar("LOG_LEVEL", "info"))
+	switch logLevel {
+	case "debug":
+		return zerolog.DebugLevel
+	case "info":
+		return zerolog.InfoLevel
+	case "warn":
+		return zerolog.WarnLevel
+	case "error":
+		return zerolog.ErrorLevel
+	case "fatal":
+		return zerolog.FatalLevel
+	case "panic":
+		return zerolog.PanicLevel
+	case "disabled":
+		return zerolog.Disabled
+	case "trace":
+		return zerolog.TraceLevel
+	default:
+		return zerolog.InfoLevel
+	}
+}
+
 func getRequiredEnvVar(ctx context.Context, incomingEnvVar string) string {
 	log := zerolog.Ctx(ctx)
 	envVar := os.Getenv(incomingEnvVar)

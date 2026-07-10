@@ -72,7 +72,7 @@ func main() {
 		defer logFile.Close()
 	}
 
-	logLevel := zerolog.InfoLevel
+	logLevel := env.GetLogLevel()
 	ctx := logging.ZeroLogConfiguration(logFile, &logLevel, serviceName, service_version.ServiceVersion)
 	log := zerolog.Ctx(ctx)
 	log.Info().Msg("Loaded .env file and initialized logging")
