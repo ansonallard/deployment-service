@@ -117,7 +117,7 @@ func main() {
 
 	dockerClient, err := client.New(
 		client.FromEnv,
-		client.WithHost(env.GetDockerHost(ctx)),
+		client.WithHost(env.GetDockerBuildHost(ctx)),
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("could not instantiate docker client")
@@ -133,7 +133,7 @@ func main() {
 			ServerAddress:       env.GetDockerServer(ctx),
 		},
 		PathToDockerCLI: env.GetPathToDockerCLI(),
-		DockerHost:      env.GetDockerHost(ctx),
+		DockerHost:      env.GetDockerBuildHost(ctx),
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to instantiate docker releaser")

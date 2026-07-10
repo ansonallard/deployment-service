@@ -49,8 +49,8 @@ func GetCICommitAuthorEmail(ctx context.Context) string {
 	return getRequiredEnvVar(ctx, "CI_COMMIT_AUTHOR_EMAIL")
 }
 
-func GetDockerHost(ctx context.Context) string {
-	return getRequiredEnvVar(ctx, "DOCKER_HOST")
+func GetDockerBuildHost(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "DOCKER_BUILD_HOST")
 }
 
 func GetBackgroundProcessingInterval(ctx context.Context) (time.Duration, error) {
