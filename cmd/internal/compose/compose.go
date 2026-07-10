@@ -92,10 +92,6 @@ func (r *runner) runComposeCommand(ctx context.Context, version *semver.Version,
 	}
 
 	cmd.Dir = composeDir
-	cmd.Env = os.Environ()
-	if version != nil {
-		cmd.Env = append(cmd.Env, r.constructVersionEnvVar(version))
-	}
 
 	log := zerolog.Ctx(ctx)
 	// Pipe stdout and stderr to zerolog
