@@ -10,6 +10,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 	logwriter "github.com/ansonallard/deployment-service/cmd/internal/log_writer"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 // CLIType is an enum for Docker Compose CLI version.
@@ -93,6 +94,15 @@ func (r *runner) runComposeCommand(ctx context.Context, version *semver.Version,
 	}
 
 	cmd.Dir = composeDir
+	cmd.Env = os.Environ()
+
+	// Debug: log Docker-related env vars
+	log.Debug().
+		Str("DOCKER_HOST", os.Getenv("DOCKER_HOST")).
+		Str("DOCKER_CONTEXT", os.Getenv("DOCKER_CONTEXT")).
+		Str("DOCKER_CONFIG", os.Getenv("DOCKER_CONFIG")).
+		Str("PATH", os.Getenv("PATH")).
+		Msg("Docker environment variables")
 
 	log := zerolog.Ctx(ctx)
 	// Pipe stdout and stderr to zerolog
