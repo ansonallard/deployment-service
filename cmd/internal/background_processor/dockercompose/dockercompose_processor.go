@@ -82,7 +82,8 @@ func (dcp *dockerComposeProcessor) DeployDockerComposeApplication(
 	}
 
 	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Starting compose application")
-	if err := dcp.compose.Up(ctx, service.GitRepoFilePath, nextVersion); err != nil {
+	// Services should use latest, and not expect `VERSION` to be set.
+	if err := dcp.compose.Up(ctx, service.GitRepoFilePath, nil); err != nil {
 		return err
 	}
 
