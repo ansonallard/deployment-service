@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/Masterminds/semver/v3"
 	logwriter "github.com/ansonallard/deployment-service/cmd/internal/log_writer"
@@ -106,6 +107,12 @@ func (r *runner) runComposeCommand(ctx context.Context, version *semver.Version,
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
 		}
+		// The stderr *should* be in your zerolog output already, but let's be explicit
+		log.Error().
+			Int("exit_code", exitCode).
+			Str("command", strings.Join(cmd.Args, " ")).
+			Err(err).
+			Msg("Compose command failed")
 		return fmt.Errorf("command %v failed (exit code %d): %w", cmd.Args, exitCode, err)
 	}
 
