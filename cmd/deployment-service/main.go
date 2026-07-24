@@ -24,12 +24,11 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/internal/releaser"
 	"github.com/ansonallard/deployment-service/cmd/internal/repo"
 	"github.com/ansonallard/deployment-service/cmd/internal/service"
-	"github.com/ansonallard/deployment-service/cmd/internal/tracing"
 	"github.com/ansonallard/deployment-service/cmd/internal/version"
 	"github.com/ansonallard/deployment-service/cmd/service_version"
 	"github.com/ansonallard/go_utils/logging"
 	"github.com/ansonallard/go_utils/openapi/ierr"
-	lmiddleware "github.com/ansonallard/go_utils/openapi/middleware"
+	"github.com/ansonallard/go_utils/tracing"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/moby/moby/client"
@@ -259,13 +258,11 @@ func main() {
 	router := gin.New()
 
 	router.Use(otelgin.Middleware(serviceName))
-	router.Use(lmiddleware.InjectLogger(log))
-	router.Use(middleware.ZerologTraceMiddleware())
-
-	router.Use(gin.Recovery())
-	router.Use(lmiddleware.LoggingMiddleware())     // Your custom logging
-	router.Use(middleware.ErrorHandlerMiddleware()) // Your custom error handling
-
+	router.Use(logging.InjectLogger(log))
+	router.Use(tracing.ZerologTraceMiddleware())
+	router.Use(logging.RecoveryMiddleware(log))
+	router.Use(logging.LoggingMiddleware())
+	router.Use(middleware.ErrorHandlerMiddleware())
 	router.Use(authZMiddleware.AuthMiddleware())
 
 	ginmiddleware.OapiRequestValidatorWithOptions(swagger, &ginmiddleware.Options{
