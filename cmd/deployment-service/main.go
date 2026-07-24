@@ -255,8 +255,10 @@ func main() {
 	}
 	gin.SetMode(ginMode)
 
-	router := gin.New()
-
+	router := gin.New(func(e *gin.Engine) {
+		// Enables downstream context to pick up tracing values
+		e.ContextWithFallback = true
+	})
 	router.Use(otelgin.Middleware(serviceName))
 	router.Use(logging.InjectLogger(log))
 	router.Use(tracing.ZerologTraceMiddleware())
