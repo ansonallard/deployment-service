@@ -46,8 +46,16 @@ type TypescriptClient struct {
 	Name
 }
 
+type RemotePackageRegistry int
+
+const (
+	PrivateRegistry RemotePackageRegistry = iota
+	Github
+)
+
 type GoClient struct {
 	Name
+	Registry RemotePackageRegistry
 }
 
 type NpmConfiguration struct {
@@ -260,7 +268,8 @@ func (s *Service) toOpenApiExternal(serviceDto *api.Service) {
 
 	if s.Configuration.OpenAPI.OpenAPI.GoClient != nil {
 		openapiConfig.GoClient = &api.OpenAPIGoClientConfig{
-			Name: s.Configuration.OpenAPI.OpenAPI.GoClient.Name.Name,
+			Name:     s.Configuration.OpenAPI.OpenAPI.GoClient.Name.Name,
+			Registry: s.Configuration.OpenAPI.OpenAPI.GoClient.Registry.toExternal(),
 		}
 	}
 
@@ -268,6 +277,34 @@ func (s *Service) toOpenApiExternal(serviceDto *api.Service) {
 	serviceDto.Configuration.FromOpenAPIConfiguration(api.OpenAPIConfiguration{
 		Openapi: openapiConfig,
 	})
+}
+
+func (r RemotePackageRegistry) toExternal() *api.OpenAPIGoClientConfigRegistry {
+	switch r {
+	case Github:
+		r := api.Github
+		return &r
+	case PrivateRegistry:
+		r := api.PrivateRegistry
+		return &r
+	default:
+		r := api.PrivateRegistry
+		return &r
+	}
+}
+
+func fromOpenAPIGoClientConfigRegistryExternal(r *api.OpenAPIGoClientConfigRegistry) RemotePackageRegistry {
+	if r == nil {
+		return PrivateRegistry
+	}
+	switch *r {
+	case api.PrivateRegistry:
+		return PrivateRegistry
+	case api.Github:
+		return Github
+	default:
+		return PrivateRegistry
+	}
 }
 
 func (s *Service) toGoExternal(serviceDto *api.Service) {
@@ -427,7 +464,8 @@ func (s *Service) handleOpenApiconfiugration(serviceConfig api.ServiceConfigurat
 
 	if openapiConfigurationDto.Openapi.GoClient != nil {
 		internalServiceConfig.OpenAPI.OpenAPI.GoClient = &GoClient{
-			Name: Name{Name: openapiConfigurationDto.Openapi.GoClient.Name},
+			Name:     Name{Name: openapiConfigurationDto.Openapi.GoClient.Name},
+			Registry: fromOpenAPIGoClientConfigRegistryExternal(openapiConfigurationDto.Openapi.GoClient.Registry),
 		}
 	}
 

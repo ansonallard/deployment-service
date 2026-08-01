@@ -361,6 +361,13 @@ components:
         name:
           type: string
           description: Name of go client.
+        registry:
+          type: string
+          description: Remote artifact store to publish client
+          enum:
+            - PrivateRegistry
+            - Github
+          default: PrivateRegistry
       required:
         - name
     NginxConfiguration:
