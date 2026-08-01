@@ -28,3 +28,8 @@ func GenerateFileFromTemplate(
 
 	return nil
 }
+
+type CiCommitAuthor struct {
+	Name  string
+	Email string
+}

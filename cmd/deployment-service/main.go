@@ -15,6 +15,7 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/goservice"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/npm"
 	openapiBp "github.com/ansonallard/deployment-service/cmd/internal/background_processor/openapi"
+	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/utils"
 	"github.com/ansonallard/deployment-service/cmd/internal/compose"
 	"github.com/ansonallard/deployment-service/cmd/internal/controllers"
 	"github.com/ansonallard/deployment-service/cmd/internal/env"
@@ -161,6 +162,12 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to instantiate npm service processor")
 	}
+
+	ciCommitAuthor := utils.CiCommitAuthor{
+		Name:  env.GetCICommitAuthorName(ctx),
+		Email: env.GetCICommitAuthorEmail(ctx),
+	}
+
 	openAPIProcessor, err := openapiBp.NewOpenAPIProcessor(openapiBp.OpenAPIProcessorConfig{
 		DockerReleaser: dockerReleaser,
 		RegistryUrl:    env.GetArtifactRegistryURL(ctx),
@@ -202,13 +209,10 @@ func main() {
 	}
 
 	backgroundProcessor, err := backgroundprocessor.NewBackgroundProcessor(backgroundprocessor.BackgroundProcessorConfig{
-		Versioner:     versioner,
-		SSHKeyPath:    env.GetSSHKeyPath(ctx),
-		GitRepoOrigin: env.GetGitRepoOirign(ctx),
-		CiCommitAuthor: &backgroundprocessor.CiCommitAuthor{
-			Name:  env.GetCICommitAuthorName(ctx),
-			Email: env.GetCICommitAuthorEmail(ctx),
-		},
+		Versioner:              versioner,
+		SSHKeyPath:             env.GetSSHKeyPath(ctx),
+		GitRepoOrigin:          env.GetGitRepoOirign(ctx),
+		CiCommitAuthor:         &ciCommitAuthor,
 		NpmServiceProcessor:    npmServiceProcessor,
 		OpenAPIProcessor:       openAPIProcessor,
 		GoServiceProcessor:     goServiceProcessor,

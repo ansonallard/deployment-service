@@ -11,6 +11,7 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/goservice"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/npm"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/openapi"
+	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/utils"
 	"github.com/ansonallard/deployment-service/cmd/internal/model"
 	"github.com/ansonallard/deployment-service/cmd/internal/version"
 	"github.com/go-git/go-git/v5"
@@ -41,18 +42,13 @@ type BackgroundProcessorConfig struct {
 	Versioner              *version.Versioner
 	SSHKeyPath             string
 	GitRepoOrigin          string
-	CiCommitAuthor         *CiCommitAuthor
+	CiCommitAuthor         *utils.CiCommitAuthor
 	NpmServiceProcessor    npm.NPMServiceProcessor
 	OpenAPIProcessor       openapi.OpenAPIProcessor
 	GoServiceProcessor     goservice.GoServiceProcessor
 	DockerComposeProcessor dockercompose.DockerComposeProcessor
 	DockerBuildProcessor   dockerbuild.DockerBuildProcessor
 	IsDev                  bool
-}
-
-type CiCommitAuthor struct {
-	Name  string
-	Email string
 }
 
 func NewBackgroundProcessor(config BackgroundProcessorConfig) (BackgroundProcesseror, error) {
@@ -107,7 +103,7 @@ type backgroundProcessor struct {
 	versioner              version.Versioner
 	sshAuth                *ssh.PublicKeys
 	gitRepoOrigin          string
-	ciCommmitAuthor        *CiCommitAuthor
+	ciCommmitAuthor        *utils.CiCommitAuthor
 	npmServiceProcessor    npm.NPMServiceProcessor
 	openAPIProcessor       openapi.OpenAPIProcessor
 	goServiceProcessor     goservice.GoServiceProcessor
