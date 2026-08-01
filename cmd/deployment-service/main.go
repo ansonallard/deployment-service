@@ -19,6 +19,7 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/internal/compose"
 	"github.com/ansonallard/deployment-service/cmd/internal/controllers"
 	"github.com/ansonallard/deployment-service/cmd/internal/env"
+	"github.com/ansonallard/deployment-service/cmd/internal/github"
 	"github.com/ansonallard/deployment-service/cmd/internal/middleware"
 	"github.com/ansonallard/deployment-service/cmd/internal/middleware/authz"
 	"github.com/ansonallard/deployment-service/cmd/internal/model"
@@ -179,6 +180,8 @@ func main() {
 			ModuleBasePath: env.GetArtifactPrefix(ctx),
 			Token:          env.GetArtifactRegistryPAT(ctx),
 		},
+		CiCommitAuthor: &ciCommitAuthor,
+		GithubClient:   github.NewGithubClient(ctx, env.GetGitHubPAT(ctx), env.GetGitHubOwner(ctx)),
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to instantiate openapi processor")

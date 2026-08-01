@@ -12,6 +12,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/utils"
+	"github.com/ansonallard/deployment-service/cmd/internal/github"
 	"github.com/ansonallard/deployment-service/cmd/internal/model"
 	"github.com/ansonallard/deployment-service/cmd/internal/releaser"
 	goclient "github.com/ansonallard/deployment-service/cmd/internal/templates/go_client"
@@ -51,6 +52,9 @@ type goClientTemplateData struct {
 	OutputPath      string
 	ServiceName     string
 	RegistryUrl     string
+	GithubOwner     string
+	CiCommitEmail   string
+	CiCommitName    string
 }
 
 type TypescriptClientConfig struct {
@@ -68,6 +72,8 @@ type OpenAPIProcessorConfig struct {
 	GoClientConfig         *GoClientConfig
 	DockerReleaser         releaser.DockerReleaser
 	RegistryUrl            string
+	GithubClient           github.GitHubClient
+	CiCommitAuthor         *utils.CiCommitAuthor
 }
 
 func NewOpenAPIProcessor(config OpenAPIProcessorConfig) (OpenAPIProcessor, error) {
@@ -92,11 +98,19 @@ func NewOpenAPIProcessor(config OpenAPIProcessorConfig) (OpenAPIProcessor, error
 	if config.GoClientConfig.ModuleBasePath == "" {
 		return nil, fmt.Errorf("GoClientConfig.ModuleBasePath not provided")
 	}
+	if config.GithubClient == nil {
+		return nil, fmt.Errorf("GitHubClient not provided")
+	}
+	if config.CiCommitAuthor == nil {
+		return nil, fmt.Errorf("ciCommitAuthor not provided")
+	}
 	return &openAPIProcessor{
 		typescriptClientConfig: config.TypescriptClientConfig,
 		goClientConfig:         config.GoClientConfig,
 		dockerReleaser:         config.DockerReleaser,
 		registryUrl:            config.RegistryUrl,
+		githubClient:           config.GithubClient,
+		ciCommitAuthor:         config.CiCommitAuthor,
 	}, nil
 }
 
@@ -105,6 +119,8 @@ type openAPIProcessor struct {
 	goClientConfig         *GoClientConfig
 	dockerReleaser         releaser.DockerReleaser
 	registryUrl            string
+	githubClient           github.GitHubClient
+	ciCommitAuthor         *utils.CiCommitAuthor
 }
 
 func (op *openAPIProcessor) SetOpenApiYamlVersion(service *model.Service, version *semver.Version) error {
@@ -280,6 +296,19 @@ func (op *openAPIProcessor) buildAndDeployGoClient(
 	service *model.Service,
 	nextVersion *semver.Version,
 ) error {
+	switch service.Configuration.OpenAPI.OpenAPI.GoClient.Registry {
+	case model.Github:
+		return op.buildAndDeployGoClientToGithub(ctx, service, nextVersion)
+	default:
+		return op.buildAndDeployGoClientToGitea(ctx, service, nextVersion)
+	}
+}
+
+func (op *openAPIProcessor) buildAndDeployGoClientToGitea(
+	ctx context.Context,
+	service *model.Service,
+	nextVersion *semver.Version,
+) error {
 	log := zerolog.Ctx(ctx)
 
 	log.Info().
@@ -333,6 +362,73 @@ func (op *openAPIProcessor) buildAndDeployGoClient(
 		Msg("Successfully published Go OpenAPI client to Gitea")
 
 	return nil
+}
+
+func (op *openAPIProcessor) buildAndDeployGoClientToGithub(
+	ctx context.Context,
+	service *model.Service,
+	nextVersion *semver.Version,
+) error {
+	log := zerolog.Ctx(ctx)
+	log.Info().Str("service", service.Name.Name).Str("version", nextVersion.String()).
+		Msg("Starting Go OpenAPI client generation and publication to GitHub")
+
+	repoName := op.generateGithubRepoName(service)
+	if err := op.githubClient.EnsureGithubRepoExists(ctx, repoName); err != nil {
+		return fmt.Errorf("failed to ensure github repo exists: %w", err)
+	}
+
+	buildDir, err := op.createOpenAPIClientBuildDir(service, nextVersion, "go-github")
+	if err != nil {
+		return fmt.Errorf("failed to create build directory: %w", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(buildDir); err != nil {
+			log.Error().Err(err).Str("buildDir", buildDir).Msg("Failed to cleanup build directory")
+		}
+	}()
+
+	imageName := fmt.Sprintf("%s-openapi-go-client-github-builder", service.Name.Name)
+	defer func() {
+		if err := op.dockerReleaser.RemoveImage(
+			ctx, op.generateOpenAPIDockerFullyQualifiedImageName(imageName, nextVersion),
+		); err != nil {
+			log.Error().Err(err).Str("imageTag", imageName).Msg("Failed to remove Docker image")
+		}
+	}()
+
+	if err := op.generateGoClientConfigFilesForGithub(buildDir, service, nextVersion, repoName); err != nil {
+		return fmt.Errorf("failed to generate Go client config files: %w", err)
+	}
+	if err := op.copyOpenAPISpec(service, buildDir); err != nil {
+		return fmt.Errorf("failed to copy OpenAPI spec: %w", err)
+	}
+
+	if err := op.dockerReleaser.BuildImageWithSecrets(
+		ctx, buildDir, "Dockerfile",
+		[]string{op.generateOpenAPIDockerFullyQualifiedImageName(imageName, nextVersion)},
+		map[string][]byte{
+			releaser.GithubPATKey: []byte(op.githubClient.GetToken()),
+		},
+	); err != nil {
+		return fmt.Errorf("failed to build Go client: %w", err)
+	}
+
+	log.Info().Str("service", service.Name.Name).Str("version", nextVersion.String()).
+		Msg("Successfully published Go OpenAPI client to GitHub")
+	return nil
+}
+
+func (op *openAPIProcessor) generateGithubRepoName(service *model.Service) string {
+	// Repo names conventionally keep hyphens (unlike the Go package/module
+	// dir name, which swaps them for underscores in generateGoClientName).
+	switch {
+	case service.Configuration.OpenAPI.OpenAPI.GoClient != nil &&
+		service.Configuration.OpenAPI.OpenAPI.GoClient.Name.Name != "":
+		return service.Configuration.OpenAPI.OpenAPI.GoClient.Name.Name
+	default:
+		return fmt.Sprintf("%s-go-client", service.Name.Name)
+	}
 }
 
 func (op *openAPIProcessor) createOpenAPIClientBuildDir(
@@ -578,4 +674,49 @@ func (op *openAPIProcessor) generateOpenAPIDockerFullyQualifiedImageName(imageNa
 
 func generateBuildID() string {
 	return time.Now().UTC().Format(time.RFC3339)
+}
+
+func (op *openAPIProcessor) generateGoClientConfigFilesForGithub(
+	buildDir string,
+	service *model.Service,
+	version *semver.Version,
+	repoName string,
+) error {
+	packageName := op.generateGoClientName(service)
+	modulePath := fmt.Sprintf("github.com/%s/%s", op.githubClient.GetOwner(), repoName)
+
+	templateData := goClientTemplateData{
+		ModulePath:      modulePath,
+		Version:         op.generateGoClientVersion(version),
+		PackageName:     packageName,
+		OpenAPIFileName: filepath.Base(service.Configuration.OpenAPI.OpenAPI.YamlFile),
+		OutputPath:      fmt.Sprintf("./lib/%s", packageName),
+		ServiceName:     service.Name.Name,
+		GithubOwner:     op.githubClient.GetOwner(),
+		CiCommitName:    op.ciCommitAuthor.Name,
+		CiCommitEmail:   op.ciCommitAuthor.Email,
+	}
+
+	if err := utils.GenerateFileFromTemplate(
+		filepath.Join(buildDir, "config.yaml"), goclient.OapiConfigTemplate, templateData,
+	); err != nil {
+		return fmt.Errorf("failed to generate config.yaml: %w", err)
+	}
+	if err := utils.GenerateFileFromTemplate(
+		filepath.Join(buildDir, "go.mod"), goclient.GoModTemplate, templateData,
+	); err != nil {
+		return fmt.Errorf("failed to generate go.mod: %w", err)
+	}
+	if err := utils.GenerateFileFromTemplate(
+		filepath.Join(buildDir, "embed.go"), goclient.EmbedGoTemplate, templateData,
+	); err != nil {
+		return fmt.Errorf("failed to generate embed.go: %w", err)
+	}
+	// Note: github-specific Dockerfile template, not goclient.DockerfileTemplate
+	if err := utils.GenerateFileFromTemplate(
+		filepath.Join(buildDir, "Dockerfile"), goclient.DockerfileGithubTemplate, templateData,
+	); err != nil {
+		return fmt.Errorf("failed to generate Dockerfile: %w", err)
+	}
+	return nil
 }

@@ -1,0 +1,38 @@
+FROM golang:1.24-alpine
+
+WORKDIR /build
+
+RUN apk add --no-cache curl zip git
+
+RUN go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+
+COPY go.mod .
+COPY config.yaml .
+COPY embed.go .
+COPY *.yaml ./
+
+RUN mkdir -p lib
+RUN oapi-codegen -config=config.yaml {{.OpenAPIFileName}}
+RUN mv embed.go lib/{{.PackageName}}/ && \
+    cp {{.OpenAPIFileName}} lib/{{.PackageName}}/
+
+RUN go mod download
+
+# GitHub has no Go package-registry upload endpoint — resolution is git-tag
+# based, so push the generated module as a tagged commit instead of a zip PUT.
+RUN --mount=type=secret,id=github_token \
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) && \
+    git config --global user.email "{{.CiCommitEmail}}" && \
+    git config --global user.name "{{.CiCommitName}}" && \
+    git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/{{.GithubOwner}}/{{.PackageName}}.git" repo && \
+    rm -rf repo/* && \
+    cp go.mod go.sum repo/ 2>/dev/null; \
+    cp -r lib repo/ && \
+    cd repo && \
+    git add -A && \
+    git commit -m "Publish {{.Version}}" --allow-empty && \
+    git tag "{{.Version}}" && \
+    git push origin HEAD:main && \
+    git push origin "{{.Version}}"
+
+CMD ["sh", "-c", "echo 'Go client build and github push complete'"]

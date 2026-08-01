@@ -105,6 +105,14 @@ func GetPathToDockerCLI() string {
 	return getOptionalEnvVar("PATH_TO_DOCKER_CLI", "/usr/bin/docker")
 }
 
+func GetGitHubPAT(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "GITHUB_PAT")
+}
+
+func GetGitHubOwner(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "GITHUB_OWNER")
+}
+
 func GetTempoURI(ctx context.Context) string {
 	tempoHost := getRequiredEnvVar(ctx, "TEMPO_HOST")
 	tempoPort := getRequiredEnvVar(ctx, "TEMPO_PORT")
