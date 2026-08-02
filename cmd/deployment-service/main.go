@@ -274,12 +274,12 @@ func main() {
 	router.Use(middleware.ErrorHandlerMiddleware())
 	router.Use(authZMiddleware.AuthMiddleware())
 
-	ginmiddleware.OapiRequestValidatorWithOptions(swagger, &ginmiddleware.Options{
+	router.Use(ginmiddleware.OapiRequestValidatorWithOptions(swagger, &ginmiddleware.Options{
 		ErrorHandler: func(c *gin.Context, message string, statusCode int) {
 			_ = c.Error(ierr.NewBadRequestError(message))
 			c.Abort()
 		},
-	})
+	}))
 
 	strictHandler := api.NewStrictHandler(deploymentServiceController, nil)
 
