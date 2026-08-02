@@ -31,6 +31,7 @@ import (
 	"github.com/ansonallard/go_utils/logging"
 	"github.com/ansonallard/go_utils/openapi/ierr"
 	"github.com/ansonallard/go_utils/tracing"
+	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/moby/moby/client"
@@ -276,6 +277,11 @@ func main() {
 		ErrorHandler: func(c *gin.Context, message string, statusCode int) {
 			_ = c.Error(ierr.NewBadRequestError(message))
 			c.Abort()
+		},
+		Options: openapi3filter.Options{
+			AuthenticationFunc: func(ctx context.Context, input *openapi3filter.AuthenticationInput) error {
+				return nil // auth is handled by authZMiddleware.AuthMiddleware()
+			},
 		},
 	}))
 
