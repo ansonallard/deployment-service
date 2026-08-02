@@ -252,8 +252,6 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Could not load OpenAPI spec.")
 	}
-	// Strip servers so kin-openapi doesn't reject requests based on host mismatch
-	swagger.Servers = nil
 
 	// Setup Gin router
 	ginMode := gin.ReleaseMode
