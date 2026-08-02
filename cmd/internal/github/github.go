@@ -56,7 +56,9 @@ func (gc *githubClient) EnsureGithubRepoExists(ctx context.Context, repoName str
 		Name:    github.String(repoName),
 		Private: github.Bool(true),
 	}
-	if _, _, err := gc.client.Repositories.Create(ctx, gc.owner, newRepo); err != nil {
+
+	// Only supports users, not orgs.
+	if _, _, err := gc.client.Repositories.Create(ctx, "", newRepo); err != nil {
 		var ghErr *github.ErrorResponse
 		if errors.As(err, &ghErr) && ghErr.Response.StatusCode == http.StatusUnprocessableEntity {
 			return nil // race with a concurrent build creating the same repo
