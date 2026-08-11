@@ -21,10 +21,6 @@ func IsDevMode() bool {
 	return strings.ToLower(getOptionalEnvVar("IS_DEV", "false")) == "true"
 }
 
-func GetOpenAPIPath(ctx context.Context) string {
-	return getRequiredEnvVar(ctx, "OPENAPI_PATH")
-}
-
 func GetAPIKey(ctx context.Context) string {
 	return getRequiredEnvVar(ctx, "API_KEY")
 }
