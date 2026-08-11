@@ -34,7 +34,8 @@ type Config struct {
 	// DockerHost string
 
 	// CLI version to use: V1 (docker-compose) or V2 (docker compose)
-	CLI CLIType
+	CLI        CLIType
+	DockerHome string
 }
 
 // runner implements ComposeRunner
@@ -93,7 +94,7 @@ func (r *runner) runComposeCommand(ctx context.Context, version *semver.Version,
 	}
 
 	cmd.Dir = composeDir
-	cmd.Env = os.Environ()
+	cmd.Env = append(os.Environ(), fmt.Sprintf("DOCKER_HOME=%s", r.config.DockerHome))
 
 	log := zerolog.Ctx(ctx)
 

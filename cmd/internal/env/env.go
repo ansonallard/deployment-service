@@ -53,6 +53,10 @@ func GetDockerBuildHost(ctx context.Context) string {
 	return getRequiredEnvVar(ctx, "DOCKER_BUILD_HOST")
 }
 
+func GetDockerDeployHost(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "DOCKER_DEPLOY_HOST")
+}
+
 func GetBackgroundProcessingInterval(ctx context.Context) (time.Duration, error) {
 	return time.ParseDuration(getRequiredEnvVar(ctx, "BACKGROUND_PROCESSING_INTERVAL"))
 }
