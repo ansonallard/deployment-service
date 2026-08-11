@@ -143,6 +143,10 @@ func GetLogLevel() zerolog.Level {
 	}
 }
 
+func GetSelfServiceName() string {
+	return getOptionalEnvVar("SELF_SERVICE_NAME", "")
+}
+
 func getRequiredEnvVar(ctx context.Context, incomingEnvVar string) string {
 	log := zerolog.Ctx(ctx)
 	envVar := os.Getenv(incomingEnvVar)
@@ -156,10 +160,6 @@ func getRequiredEnvVar(ctx context.Context, incomingEnvVar string) string {
 		}
 	}
 	return envVar
-}
-
-func getOptionalEnvVarDefault(incomingEnvVar string) string {
-	return getOptionalEnvVar(incomingEnvVar, "")
 }
 
 func getOptionalEnvVar(incomingEnvVar, defaultArg string) string {

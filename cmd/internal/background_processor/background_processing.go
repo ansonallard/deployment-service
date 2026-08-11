@@ -3,6 +3,7 @@ package backgroundprocessor
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
@@ -49,6 +50,7 @@ type BackgroundProcessorConfig struct {
 	DockerComposeProcessor dockercompose.DockerComposeProcessor
 	DockerBuildProcessor   dockerbuild.DockerBuildProcessor
 	IsDev                  bool
+	SelfServiceName        string
 }
 
 func NewBackgroundProcessor(config BackgroundProcessorConfig) (BackgroundProcesseror, error) {
@@ -95,6 +97,7 @@ func NewBackgroundProcessor(config BackgroundProcessorConfig) (BackgroundProcess
 			dockerComposeProcessor: config.DockerComposeProcessor,
 			dockerBuildProcessor:   config.DockerBuildProcessor,
 			isDevMode:              config.IsDev,
+			selfServiceName:        config.SelfServiceName,
 		},
 		nil
 }
@@ -110,10 +113,15 @@ type backgroundProcessor struct {
 	dockerComposeProcessor dockercompose.DockerComposeProcessor
 	dockerBuildProcessor   dockerbuild.DockerBuildProcessor
 	isDevMode              bool
+	selfDeployMu           sync.RWMutex
+	selfServiceName        string
 }
 
 func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *model.Service) error {
 	log := zerolog.Ctx(ctx)
+
+	unlock := bp.acquireDeployLock(service)
+	defer unlock()
 
 	_, checkSpan := tracer.Start(ctx, "background.has_new_commit",
 		trace.WithAttributes(attribute.String("service.name", service.Name.Name)),
@@ -430,4 +438,20 @@ func (bp *backgroundProcessor) tagAndPushChanges(ctx context.Context, repoPath s
 		return fmt.Errorf("failed to push tags: %w", err)
 	}
 	return nil
+}
+
+func (bp *backgroundProcessor) acquireDeployLock(service *model.Service) func() {
+	if bp.isSelf(service) {
+		bp.selfDeployMu.Lock()
+		return bp.selfDeployMu.Unlock
+	}
+	bp.selfDeployMu.RLock()
+	return bp.selfDeployMu.RUnlock
+}
+
+func (bp *backgroundProcessor) isSelf(service *model.Service) bool {
+	if bp.selfServiceName == "" {
+		return false
+	}
+	return service.Name.Name == bp.selfServiceName
 }

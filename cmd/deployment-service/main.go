@@ -221,6 +221,7 @@ func main() {
 		DockerComposeProcessor: dockerComposeProcessor,
 		DockerBuildProcessor:   dockerBuildProcessor,
 		IsDev:                  env.IsDevMode(),
+		SelfServiceName:        env.GetSelfServiceName(),
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to instantiate background processor")
