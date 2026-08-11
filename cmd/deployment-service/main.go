@@ -147,8 +147,6 @@ func main() {
 
 	envWriter := service.NewEnvFileWriter()
 
-	versioner := version.NewVersioner()
-
 	npmrcPath := env.GetNPMRCPath(ctx)
 	npmrcFileBytes, err := os.ReadFile(npmrcPath)
 	if err != nil {
@@ -213,7 +211,7 @@ func main() {
 	}
 
 	backgroundProcessor, err := backgroundprocessor.NewBackgroundProcessor(backgroundprocessor.BackgroundProcessorConfig{
-		Versioner:              versioner,
+		Versioner:              version.NewVersioner(),
 		SSHKeyPath:             env.GetSSHKeyPath(ctx),
 		GitRepoOrigin:          env.GetGitRepoOirign(ctx),
 		CiCommitAuthor:         &ciCommitAuthor,

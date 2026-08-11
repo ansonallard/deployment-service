@@ -39,7 +39,7 @@ type BackgroundProcesseror interface {
 }
 
 type BackgroundProcessorConfig struct {
-	Versioner              *version.Versioner
+	Versioner              version.Versioner
 	SSHKeyPath             string
 	GitRepoOrigin          string
 	CiCommitAuthor         *utils.CiCommitAuthor
@@ -85,7 +85,7 @@ func NewBackgroundProcessor(config BackgroundProcessorConfig) (BackgroundProcess
 	}
 
 	return &backgroundProcessor{
-			versioner:              *config.Versioner,
+			versioner:              config.Versioner,
 			gitRepoOrigin:          config.GitRepoOrigin,
 			sshAuth:                sshAuth,
 			ciCommmitAuthor:        config.CiCommitAuthor,

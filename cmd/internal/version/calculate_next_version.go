@@ -23,18 +23,22 @@ var tracer = otel.Tracer("deployment-service.version")
 
 var baseSemVerVersion = semver.New(0, 0, 1, "", "")
 
+type Versioner interface {
+	CalculateNextVersion(ctx context.Context, repoPath string) (*semver.Version, error)
+}
+
 // Versioner holds state for calculating next semantic version
-type Versioner struct {
+type versioner struct {
 }
 
 // New creates a new Versioner for a given repo path
-func NewVersioner() *Versioner {
-	return &Versioner{}
+func NewVersioner() Versioner {
+	return &versioner{}
 }
 
 // CalculateNextVersion walks commit history, checks conventional commits,
 // finds the last tag, and returns the next semantic version.
-func (v *Versioner) CalculateNextVersion(ctx context.Context, repoPath string) (*semver.Version, error) {
+func (v *versioner) CalculateNextVersion(ctx context.Context, repoPath string) (*semver.Version, error) {
 	ctx, span := tracer.Start(ctx, "version.calculate",
 		trace.WithAttributes(attribute.String("repo_path", repoPath)),
 	)
