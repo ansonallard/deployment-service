@@ -120,7 +120,7 @@ type backgroundProcessor struct {
 func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *model.Service) error {
 	log := zerolog.Ctx(ctx)
 
-	unlock := bp.acquireDeployLock(service)
+	unlock := bp.acquireDeployLock(ctx, service)
 	defer unlock()
 
 	_, checkSpan := tracer.Start(ctx, "background.has_new_commit",
@@ -440,13 +440,23 @@ func (bp *backgroundProcessor) tagAndPushChanges(ctx context.Context, repoPath s
 	return nil
 }
 
-func (bp *backgroundProcessor) acquireDeployLock(service *model.Service) func() {
+func (bp *backgroundProcessor) acquireDeployLock(ctx context.Context, service *model.Service) func() {
+	log := zerolog.Ctx(ctx)
+
 	if bp.isSelf(service) {
 		bp.selfDeployMu.Lock()
-		return bp.selfDeployMu.Unlock
+		log.Info().Msg("Acquired RW lock")
+		return func() {
+			bp.selfDeployMu.Unlock()
+			log.Info().Msg("Released RW lock")
+		}
 	}
+	log.Info().Msg("Acquired R lock")
 	bp.selfDeployMu.RLock()
-	return bp.selfDeployMu.RUnlock
+	return func() {
+		bp.selfDeployMu.RUnlock()
+		log.Info().Msg("Released R lock")
+	}
 }
 
 func (bp *backgroundProcessor) isSelf(service *model.Service) bool {
