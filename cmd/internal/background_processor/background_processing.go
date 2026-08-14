@@ -445,17 +445,17 @@ func (bp *backgroundProcessor) acquireDeployLock(ctx context.Context, service *m
 
 	if bp.isSelf(service) {
 		bp.selfDeployMu.Lock()
-		log.Info().Msg("Acquired RW lock")
+		log.Debug().Msg("Acquired RW lock")
 		return func() {
 			bp.selfDeployMu.Unlock()
-			log.Info().Msg("Released RW lock")
+			log.Debug().Msg("Released RW lock")
 		}
 	}
-	log.Info().Msg("Acquired R lock")
+	log.Debug().Msg("Acquired R lock")
 	bp.selfDeployMu.RLock()
 	return func() {
 		bp.selfDeployMu.RUnlock()
-		log.Info().Msg("Released R lock")
+		log.Debug().Msg("Released R lock")
 	}
 }
 
