@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ansonallard/deployment-service/cmd/internal/api"
 	"github.com/ansonallard/deployment-service/cmd/internal/model"
 	"github.com/ansonallard/deployment-service/cmd/internal/service"
-	"github.com/ansonallard/deployment_service_go_client/lib/deployment_service_go_client"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -16,19 +16,19 @@ var tracer = otel.Tracer("deployment-service.controllers")
 
 type DeploymentServiceController interface {
 	// (GET /services)
-	ListServices(ctx context.Context, request deployment_service_go_client.ListServicesRequestObject) (deployment_service_go_client.ListServicesResponseObject, error)
+	ListServices(ctx context.Context, request api.ListServicesRequestObject) (api.ListServicesResponseObject, error)
 
 	// (POST /services)
-	CreateService(ctx context.Context, request deployment_service_go_client.CreateServiceRequestObject) (deployment_service_go_client.CreateServiceResponseObject, error)
+	CreateService(ctx context.Context, request api.CreateServiceRequestObject) (api.CreateServiceResponseObject, error)
 
 	// (GET /services/{name})
-	GetService(ctx context.Context, request deployment_service_go_client.GetServiceRequestObject) (deployment_service_go_client.GetServiceResponseObject, error)
+	GetService(ctx context.Context, request api.GetServiceRequestObject) (api.GetServiceResponseObject, error)
 
 	// (PUT /services/{name})
-	UpdateService(ctx context.Context, request deployment_service_go_client.UpdateServiceRequestObject) (deployment_service_go_client.UpdateServiceResponseObject, error)
+	UpdateService(ctx context.Context, request api.UpdateServiceRequestObject) (api.UpdateServiceResponseObject, error)
 
 	// (DELETE /services/{name})
-	DeleteService(ctx context.Context, request deployment_service_go_client.DeleteServiceRequestObject) (deployment_service_go_client.DeleteServiceResponseObject, error)
+	DeleteService(ctx context.Context, request api.DeleteServiceRequestObject) (api.DeleteServiceResponseObject, error)
 }
 
 type DeploymentServiceControllerConfig struct {
@@ -48,7 +48,7 @@ func NewDeploymentServiceController(config DeploymentServiceControllerConfig) (D
 	}, nil
 }
 
-func (ds *deploymentServiceController) CreateService(ctx context.Context, request deployment_service_go_client.CreateServiceRequestObject) (deployment_service_go_client.CreateServiceResponseObject, error) {
+func (ds *deploymentServiceController) CreateService(ctx context.Context, request api.CreateServiceRequestObject) (api.CreateServiceResponseObject, error) {
 	ctx, span := tracer.Start(ctx, "controllers.create",
 		trace.WithAttributes(attribute.String("service.name", request.Body.Service.Name)),
 	)
@@ -61,22 +61,21 @@ func (ds *deploymentServiceController) CreateService(ctx context.Context, reques
 	if err := ds.service.Create(ctx, service); err != nil {
 		return nil, err
 	}
-	serviceDto := new(deployment_service_go_client.Service)
+	serviceDto := new(api.Service)
 	if err := service.ToExternal(serviceDto); err != nil {
 		return nil, err
 	}
-	version := deployment_service_go_client.Version(service.Version)
-	return deployment_service_go_client.CreateService200JSONResponse{
-		Body: deployment_service_go_client.CreateServiceResponse{
+	return api.CreateService200JSONResponse{
+		Body: api.CreateServiceResponse{
 			Service: *serviceDto,
 		},
-		Headers: deployment_service_go_client.CreateService200ResponseHeaders{
-			ETag: &version,
+		Headers: api.CreateService200ResponseHeaders{
+			ETag: api.Version(service.Version),
 		},
 	}, nil
 }
 
-func (ds *deploymentServiceController) GetService(ctx context.Context, request deployment_service_go_client.GetServiceRequestObject) (deployment_service_go_client.GetServiceResponseObject, error) {
+func (ds *deploymentServiceController) GetService(ctx context.Context, request api.GetServiceRequestObject) (api.GetServiceResponseObject, error) {
 	ctx, span := tracer.Start(ctx, "controllers.get",
 		trace.WithAttributes(attribute.String("service.name", string(request.Name))),
 	)
@@ -87,22 +86,21 @@ func (ds *deploymentServiceController) GetService(ctx context.Context, request d
 		return nil, err
 	}
 
-	serviceDto := new(deployment_service_go_client.Service)
+	serviceDto := new(api.Service)
 	if err := service.ToExternal(serviceDto); err != nil {
 		return nil, err
 	}
-	version := deployment_service_go_client.Version(service.Version)
-	return deployment_service_go_client.GetService200JSONResponse{
-		Body: deployment_service_go_client.GetServiceResponse{
+	return api.GetService200JSONResponse{
+		Body: api.GetServiceResponse{
 			Service: *serviceDto,
 		},
-		Headers: deployment_service_go_client.GetService200ResponseHeaders{
-			ETag: &version,
+		Headers: api.GetService200ResponseHeaders{
+			ETag: api.Version(service.Version),
 		},
 	}, nil
 }
 
-func (ds *deploymentServiceController) ListServices(ctx context.Context, request deployment_service_go_client.ListServicesRequestObject) (deployment_service_go_client.ListServicesResponseObject, error) {
+func (ds *deploymentServiceController) ListServices(ctx context.Context, request api.ListServicesRequestObject) (api.ListServicesResponseObject, error) {
 	ctx, span := tracer.Start(ctx, "controllers.list")
 	defer span.End()
 
@@ -113,23 +111,23 @@ func (ds *deploymentServiceController) ListServices(ctx context.Context, request
 		return nil, err
 	}
 
-	servicesDto := make(deployment_service_go_client.Services, 0)
+	servicesDto := make(api.Services, 0)
 
 	for _, service := range services {
-		serviceDto := new(deployment_service_go_client.Service)
+		serviceDto := new(api.Service)
 		if err := service.ToExternal(serviceDto); err != nil {
 			return nil, err
 		}
 		servicesDto = append(servicesDto, *serviceDto)
 	}
 
-	return deployment_service_go_client.ListServices200JSONResponse{
+	return api.ListServices200JSONResponse{
 		Services:  servicesDto,
 		NextToken: nil,
 	}, nil
 }
 
-func (ds *deploymentServiceController) UpdateService(ctx context.Context, request deployment_service_go_client.UpdateServiceRequestObject) (deployment_service_go_client.UpdateServiceResponseObject, error) {
+func (ds *deploymentServiceController) UpdateService(ctx context.Context, request api.UpdateServiceRequestObject) (api.UpdateServiceResponseObject, error) {
 	ctx, span := tracer.Start(ctx, "controllers.update",
 		trace.WithAttributes(attribute.String("service.name", string(request.Name))),
 	)
@@ -145,23 +143,22 @@ func (ds *deploymentServiceController) UpdateService(ctx context.Context, reques
 		return nil, err
 	}
 
-	serviceDto := new(deployment_service_go_client.Service)
+	serviceDto := new(api.Service)
 	if err := updated.ToExternal(serviceDto); err != nil {
 		return nil, err
 	}
 
-	version := deployment_service_go_client.Version(updated.Version)
-	return deployment_service_go_client.UpdateService200JSONResponse{
-		Body: deployment_service_go_client.UpdateServiceResponse{
+	return api.UpdateService200JSONResponse{
+		Body: api.UpdateServiceResponse{
 			Service: *serviceDto,
 		},
-		Headers: deployment_service_go_client.UpdateService200ResponseHeaders{
-			ETag: &version,
+		Headers: api.UpdateService200ResponseHeaders{
+			ETag: api.Version(updated.Version),
 		},
 	}, nil
 }
 
-func (ds *deploymentServiceController) DeleteService(ctx context.Context, request deployment_service_go_client.DeleteServiceRequestObject) (deployment_service_go_client.DeleteServiceResponseObject, error) {
+func (ds *deploymentServiceController) DeleteService(ctx context.Context, request api.DeleteServiceRequestObject) (api.DeleteServiceResponseObject, error) {
 	ctx, span := tracer.Start(ctx, "controllers.delete",
 		trace.WithAttributes(attribute.String("service.name", string(request.Name))),
 	)
@@ -170,5 +167,5 @@ func (ds *deploymentServiceController) DeleteService(ctx context.Context, reques
 	if err := ds.service.Delete(ctx, request.Name); err != nil {
 		return nil, err
 	}
-	return deployment_service_go_client.DeleteService204Response{}, nil
+	return api.DeleteService204Response{}, nil
 }
