@@ -16,7 +16,7 @@ RUN oapi-codegen -config=config.yaml {{.OpenAPIFileName}}
 RUN mv embed.go lib/{{.PackageName}}/ && \
     cp {{.OpenAPIFileName}} lib/{{.PackageName}}/
 
-RUN go mod download
+RUN go get github.com/oapi-codegen/runtime; go mod tidy;
 
 # GitHub has no Go package-registry upload endpoint — resolution is git-tag
 # based, so push the generated module as a tagged commit instead of a zip PUT.
