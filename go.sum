@@ -10,6 +10,8 @@ github.com/ProtonMail/go-crypto v1.3.0/go.mod h1:9whxjD8Rbs29b4XWbB8irEcE8KHMqaR
 github.com/RaveNoX/go-jsoncommentstrip v1.0.0/go.mod h1:78ihd09MekBnJnxpICcwzCMzGrKSKYe4AqU6PDYYpjk=
 github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be h1:9AeTilPcZAjCFIImctFaOjnTIavg87rW78vTPkQqLI8=
 github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be/go.mod h1:ySMOLuWl6zY27l47sB3qLNK6tF2fkHG55UZxx8oIVo4=
+github.com/ansonallard/deployment_service_go_client v0.1.0 h1:bUrz5F/d9PXZlMLcrx0orHykKUy5B1mDDRbQw2/uho8=
+github.com/ansonallard/deployment_service_go_client v0.1.0/go.mod h1:WLPZAI5pHDeYBkJCWkjFRQXzqxenLD3ymIF/fJUx1Zo=
 github.com/ansonallard/go_utils v0.7.1 h1:hs1c/N9u6QLVP53wifr9p0LMv2DbWosxDLAwuRw0Mhg=
 github.com/ansonallard/go_utils v0.7.1/go.mod h1:gWX7kbFnfRyyMhopnFyJlfirPAgvdfuBhi5qGCcqQBU=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7Dml6nw9rQ=

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ansonallard/deployment-service/cmd/internal/api"
 	"github.com/ansonallard/deployment-service/cmd/internal/utils"
+	"github.com/ansonallard/deployment_service_go_client/lib/deployment_service_go_client"
 	"github.com/ansonallard/go_utils/openapi/ierr"
 )
 
@@ -171,11 +171,11 @@ func detectUnionMember[T unionMember](raw []byte, members []T) (T, error) {
 	return present[0], nil
 }
 
-func (s *Service) FromCreateRequest(dto *api.CreateServiceRequest) error {
+func (s *Service) FromCreateRequest(dto *deployment_service_go_client.CreateServiceRequest) error {
 	var err error
 	s.Name.Name = dto.Service.Name
 
-	var gitConfigurationOptions api.GitConfigurationOptions
+	var gitConfigurationOptions deployment_service_go_client.GitConfigurationOptions
 	if gitConfigurationOptions, err = dto.Service.Git.AsGitConfigurationOptions(); err != nil {
 		return err
 	}
@@ -194,7 +194,7 @@ func (s *Service) FromCreateRequest(dto *api.CreateServiceRequest) error {
 	return nil
 }
 
-func (s *Service) FromUpdateRequest(dto *api.UpdateServiceRequest) error {
+func (s *Service) FromUpdateRequest(dto *deployment_service_go_client.UpdateServiceRequest) error {
 	serviceConfiguration, err := s.generateServiceConfiguration(dto.Service.Configuration)
 	if err != nil {
 		return err
@@ -203,11 +203,11 @@ func (s *Service) FromUpdateRequest(dto *api.UpdateServiceRequest) error {
 	return nil
 }
 
-func (s *Service) ToExternal(serviceDto *api.Service) error {
+func (s *Service) ToExternal(serviceDto *deployment_service_go_client.Service) error {
 	serviceDto.Id = s.ID
 	serviceDto.Name = s.Name.Name
-	serviceDto.Git = api.GitConfiguration{}
-	if err := serviceDto.Git.FromGitConfigurationOptions(api.GitConfigurationOptions{
+	serviceDto.Git = deployment_service_go_client.GitConfiguration{}
+	if err := serviceDto.Git.FromGitConfigurationOptions(deployment_service_go_client.GitConfigurationOptions{
 		SshUrl:     s.GitSSHUrl,
 		BranchName: s.GitBranchName,
 	}); err != nil {
@@ -232,98 +232,98 @@ func (s *Service) ToExternal(serviceDto *api.Service) error {
 	return nil
 }
 
-func (s *Service) toNpmExternal(serviceDto *api.Service) {
-	npmConfiguration := api.NPMConfigurationChoices{}
-	var serviceType api.NPMServiceType
+func (s *Service) toNpmExternal(serviceDto *deployment_service_go_client.Service) {
+	npmConfiguration := deployment_service_go_client.NPMConfigurationChoices{}
+	var serviceType deployment_service_go_client.NPMServiceType
 	switch s.Configuration.Npm.Service.ServiceType {
 	case NpmServiceTypeBackend:
-		serviceType = api.Backend
+		serviceType = deployment_service_go_client.Backend
 	case NpmServiceTypeFrontend:
-		serviceType = api.Frontend
+		serviceType = deployment_service_go_client.Frontend
 	default:
-		serviceType = api.Backend
+		serviceType = deployment_service_go_client.Backend
 	}
 
-	npmConfiguration.FromNPMService(api.NPMService{
-		Service: api.NPMServiceConfiguration{
+	npmConfiguration.FromNPMService(deployment_service_go_client.NPMService{
+		Service: deployment_service_go_client.NPMServiceConfiguration{
 			Type: serviceType,
 		},
 	})
-	serviceDto.Configuration = api.ServiceConfiguration{}
-	serviceDto.Configuration.FromNPMConfiguration(api.NPMConfiguration{
+	serviceDto.Configuration = deployment_service_go_client.ServiceConfiguration{}
+	serviceDto.Configuration.FromNPMConfiguration(deployment_service_go_client.NPMConfiguration{
 		Npm: npmConfiguration,
 	})
 }
 
-func (s *Service) toOpenApiExternal(serviceDto *api.Service) {
-	openapiConfig := api.OpenAPIConfigurationChoices{
+func (s *Service) toOpenApiExternal(serviceDto *deployment_service_go_client.Service) {
+	openapiConfig := deployment_service_go_client.OpenAPIConfigurationChoices{
 		YamlFile: s.Configuration.OpenAPI.OpenAPI.YamlFile,
 	}
 
 	if s.Configuration.OpenAPI.OpenAPI.TypescriptClient != nil {
-		openapiConfig.TypescriptClient = &api.OpenAPITypescriptClientConfig{
+		openapiConfig.TypescriptClient = &deployment_service_go_client.OpenAPITypescriptClientConfig{
 			Name: s.Configuration.OpenAPI.OpenAPI.TypescriptClient.Name.Name,
 		}
 	}
 
 	if s.Configuration.OpenAPI.OpenAPI.GoClient != nil {
-		openapiConfig.GoClient = &api.OpenAPIGoClientConfig{
+		openapiConfig.GoClient = &deployment_service_go_client.OpenAPIGoClientConfig{
 			Name:     s.Configuration.OpenAPI.OpenAPI.GoClient.Name.Name,
 			Registry: s.Configuration.OpenAPI.OpenAPI.GoClient.Registry.toExternal(),
 		}
 	}
 
-	serviceDto.Configuration = api.ServiceConfiguration{}
-	serviceDto.Configuration.FromOpenAPIConfiguration(api.OpenAPIConfiguration{
+	serviceDto.Configuration = deployment_service_go_client.ServiceConfiguration{}
+	serviceDto.Configuration.FromOpenAPIConfiguration(deployment_service_go_client.OpenAPIConfiguration{
 		Openapi: openapiConfig,
 	})
 }
 
-func (r RemotePackageRegistry) toExternal() *api.OpenAPIGoClientConfigRegistry {
+func (r RemotePackageRegistry) toExternal() *deployment_service_go_client.OpenAPIGoClientConfigRegistry {
 	switch r {
 	case Github:
-		r := api.Github
+		r := deployment_service_go_client.Github
 		return &r
 	case PrivateRegistry:
-		r := api.PrivateRegistry
+		r := deployment_service_go_client.PrivateRegistry
 		return &r
 	default:
-		r := api.PrivateRegistry
+		r := deployment_service_go_client.PrivateRegistry
 		return &r
 	}
 }
 
-func fromOpenAPIGoClientConfigRegistryExternal(r *api.OpenAPIGoClientConfigRegistry) RemotePackageRegistry {
+func fromOpenAPIGoClientConfigRegistryExternal(r *deployment_service_go_client.OpenAPIGoClientConfigRegistry) RemotePackageRegistry {
 	if r == nil {
 		return PrivateRegistry
 	}
 	switch *r {
-	case api.PrivateRegistry:
+	case deployment_service_go_client.PrivateRegistry:
 		return PrivateRegistry
-	case api.Github:
+	case deployment_service_go_client.Github:
 		return Github
 	default:
 		return PrivateRegistry
 	}
 }
 
-func (s *Service) toGoExternal(serviceDto *api.Service) {
-	serviceConfig := api.GoServiceConfiguration{}
+func (s *Service) toGoExternal(serviceDto *deployment_service_go_client.Service) {
+	serviceConfig := deployment_service_go_client.GoServiceConfiguration{}
 	if s.Configuration.Go.Service.BinaryDirectory != "" {
 		serviceConfig.BinaryDirectory = &s.Configuration.Go.Service.BinaryDirectory
 	}
 
-	goConfiguration := api.GoConfigurationChoices{}
-	goConfiguration.FromGoService(api.GoService{
+	goConfiguration := deployment_service_go_client.GoConfigurationChoices{}
+	goConfiguration.FromGoService(deployment_service_go_client.GoService{
 		Service: serviceConfig,
 	})
-	serviceDto.Configuration = api.ServiceConfiguration{}
-	serviceDto.Configuration.FromGoConfiguration(api.GoConfiguration{
+	serviceDto.Configuration = deployment_service_go_client.ServiceConfiguration{}
+	serviceDto.Configuration.FromGoConfiguration(deployment_service_go_client.GoConfiguration{
 		Go: goConfiguration,
 	})
 }
 
-func FromListRequest(params api.ListServicesParams) (maxResults int, nextToken string) {
+func FromListRequest(params deployment_service_go_client.ListServicesParams) (maxResults int, nextToken string) {
 	maxResults = 100
 	nextToken = ""
 	if params.MaxResults != nil {
@@ -335,34 +335,34 @@ func FromListRequest(params api.ListServicesParams) (maxResults int, nextToken s
 	return maxResults, nextToken
 }
 
-func (s *Service) toDockerBuildExternal(serviceDto *api.Service) {
-	serviceDto.Configuration = api.ServiceConfiguration{}
-	serviceDto.Configuration.FromDockerBuildConfiguration(api.DockerBuildConfiguration{
-		DockerBuild: api.DockerBuildConfigurationOptions{
+func (s *Service) toDockerBuildExternal(serviceDto *deployment_service_go_client.Service) {
+	serviceDto.Configuration = deployment_service_go_client.ServiceConfiguration{}
+	serviceDto.Configuration.FromDockerBuildConfiguration(deployment_service_go_client.DockerBuildConfiguration{
+		DockerBuild: deployment_service_go_client.DockerBuildConfigurationOptions{
 			DockerfilePath: &s.Configuration.DockerBuild.DockerfilePath,
 		},
 	})
 }
 
-func (s *Service) toDockerComposeExternal(serviceDto *api.Service) {
-	var envFiles api.EnvFiles
+func (s *Service) toDockerComposeExternal(serviceDto *deployment_service_go_client.Service) {
+	var envFiles deployment_service_go_client.EnvFiles
 	if s.Configuration.DockerCompose.EnvFiles != nil {
-		envFiles = make(api.EnvFiles)
+		envFiles = make(deployment_service_go_client.EnvFiles)
 		for k, v := range s.Configuration.DockerCompose.EnvFiles {
-			envFiles[k] = api.EnvVars(v)
+			envFiles[k] = deployment_service_go_client.EnvVars(v)
 		}
 	}
 
-	serviceDto.Configuration = api.ServiceConfiguration{}
-	serviceDto.Configuration.FromDockerComposeConfiguration(api.DockerComposeConfiguration{
-		DockerCompose: api.DockerComposeConfigurationOptions{
+	serviceDto.Configuration = deployment_service_go_client.ServiceConfiguration{}
+	serviceDto.Configuration.FromDockerComposeConfiguration(deployment_service_go_client.DockerComposeConfiguration{
+		DockerCompose: deployment_service_go_client.DockerComposeConfigurationOptions{
 			EnvFiles:      &envFiles,
 			RefreshImages: &s.Configuration.DockerCompose.RefreshImages,
 		},
 	})
 }
 
-func (s *Service) generateServiceConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+func (s *Service) generateServiceConfiguration(serviceConfig deployment_service_go_client.ServiceConfiguration) (*ServiceConfiguration, error) {
 	raw, err := serviceConfig.MarshalJSON()
 	if err != nil {
 		return nil, err
@@ -389,7 +389,7 @@ func (s *Service) generateServiceConfiguration(serviceConfig api.ServiceConfigur
 	}
 }
 
-func (s *Service) handleNpmConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+func (s *Service) handleNpmConfiguration(serviceConfig deployment_service_go_client.ServiceConfiguration) (*ServiceConfiguration, error) {
 	npmConfiguration, err := serviceConfig.AsNPMConfiguration()
 	if err != nil {
 		return nil, err
@@ -414,9 +414,9 @@ func (s *Service) handleNpmConfiguration(serviceConfig api.ServiceConfiguration)
 
 		var serviceType NpmServiceType
 		switch service.Service.Type {
-		case api.Backend:
+		case deployment_service_go_client.Backend:
 			serviceType = NpmServiceTypeBackend
-		case api.Frontend:
+		case deployment_service_go_client.Frontend:
 			serviceType = NpmServiceTypeFrontend
 		}
 
@@ -437,7 +437,7 @@ func (s *Service) handleNpmConfiguration(serviceConfig api.ServiceConfiguration)
 	}
 }
 
-func (s *Service) handleOpenApiconfiugration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+func (s *Service) handleOpenApiconfiugration(serviceConfig deployment_service_go_client.ServiceConfiguration) (*ServiceConfiguration, error) {
 	openapiConfigurationDto, err := serviceConfig.AsOpenAPIConfiguration()
 	if err != nil {
 		return nil, err
@@ -472,7 +472,7 @@ func (s *Service) handleOpenApiconfiugration(serviceConfig api.ServiceConfigurat
 	return &internalServiceConfig, nil
 }
 
-func (s *Service) handleGoConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+func (s *Service) handleGoConfiguration(serviceConfig deployment_service_go_client.ServiceConfiguration) (*ServiceConfiguration, error) {
 	goConfigurationDto, err := serviceConfig.AsGoConfiguration()
 	if err != nil {
 		return nil, err
@@ -510,7 +510,7 @@ func (s *Service) handleGoConfiguration(serviceConfig api.ServiceConfiguration) 
 	}
 }
 
-func (s *Service) handleDockerComposeConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+func (s *Service) handleDockerComposeConfiguration(serviceConfig deployment_service_go_client.ServiceConfiguration) (*ServiceConfiguration, error) {
 	dockerComposeConfig, err := serviceConfig.AsDockerComposeConfiguration()
 	if err != nil {
 		return nil, err
@@ -530,7 +530,7 @@ func (s *Service) handleDockerComposeConfiguration(serviceConfig api.ServiceConf
 	return &ServiceConfiguration{DockerCompose: &internalConfig}, nil
 }
 
-func (s *Service) handleDockerBuildConfiguration(serviceConfig api.ServiceConfiguration) (*ServiceConfiguration, error) {
+func (s *Service) handleDockerBuildConfiguration(serviceConfig deployment_service_go_client.ServiceConfiguration) (*ServiceConfiguration, error) {
 	dockerBuildConfig, err := serviceConfig.AsDockerBuildConfiguration()
 	if err != nil {
 		return nil, err
