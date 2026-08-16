@@ -51,9 +51,10 @@ const (
 
 func main() {
 	var logFile *os.File
-
-	if err := godotenv.Load(); err != nil {
-		panic("could not load .env file")
+	if env.IsDevMode() {
+		if err := godotenv.Load(); err != nil {
+			panic("could not load .env file")
+		}
 	}
 
 	if !env.IsDevMode() {
