@@ -143,7 +143,8 @@ func GetLogLevel() zerolog.Level {
 	}
 }
 
-func GetSelfServiceName() string {
+// The Docker Compose Application name used to deploy this service
+func GetSelfServiceApplication() string {
 	return getOptionalEnvVar("SELF_SERVICE_NAME", "")
 }
 
