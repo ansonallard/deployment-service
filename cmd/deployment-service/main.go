@@ -189,9 +189,10 @@ func main() {
 	}
 
 	goServiceProcessor, err := goservice.NewGoServiceProcessor(goservice.GoServiceProcessorConfig{
-		DockerReleaser: dockerReleaser,
-		GoUser:         env.GetGoUser(ctx),
-		GoPAT:          env.GetGoPAT(ctx),
+		DockerReleaser:  dockerReleaser,
+		GoUser:          env.GetGoUser(ctx),
+		GoPAT:           env.GetGoPAT(ctx),
+		SelfServiceName: env.GetDeploymentServiceName(),
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to instantiate go service processor")

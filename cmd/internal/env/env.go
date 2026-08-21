@@ -147,6 +147,11 @@ func GetSelfServiceName() string {
 	return getOptionalEnvVar("SELF_SERVICE_NAME", "")
 }
 
+// The Go Service name used to build this application
+func GetDeploymentServiceName() string {
+	return getOptionalEnvVar("DEPLOYMENT_SERVICE_NAME", "")
+}
+
 func getRequiredEnvVar(ctx context.Context, incomingEnvVar string) string {
 	log := zerolog.Ctx(ctx)
 	envVar := os.Getenv(incomingEnvVar)

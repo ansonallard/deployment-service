@@ -21,8 +21,12 @@ import (
 
 var tracer = otel.Tracer("deployment-service.processor.go")
 
-const versionFileName = "version.txt"
-const dockerfileName = "Dockerfile"
+const (
+	versionFileName    = "version.txt"
+	dockerfileName     = "Dockerfile"
+	defaultBaseImage   = "gcr.io/distroless/static"
+	dockerCliBaseImage = "docker:27-cli"
+)
 
 type GoServiceProcessor interface {
 	SetVersionFile(service *model.Service, version *semver.Version) error
@@ -32,15 +36,17 @@ type GoServiceProcessor interface {
 }
 
 type GoServiceProcessorConfig struct {
-	DockerReleaser releaser.DockerReleaser
-	GoUser         string
-	GoPAT          string
+	DockerReleaser  releaser.DockerReleaser
+	GoUser          string
+	GoPAT           string
+	SelfServiceName string
 }
 
 type goServiceProcessor struct {
-	dockerReleaser releaser.DockerReleaser
-	goUser         string
-	goPAT          string
+	dockerReleaser  releaser.DockerReleaser
+	goUser          string
+	goPAT           string
+	selfServiceName string
 }
 
 func NewGoServiceProcessor(config GoServiceProcessorConfig) (GoServiceProcessor, error) {
@@ -54,9 +60,10 @@ func NewGoServiceProcessor(config GoServiceProcessorConfig) (GoServiceProcessor,
 		return nil, fmt.Errorf("goPAT not provided")
 	}
 	return &goServiceProcessor{
-		dockerReleaser: config.DockerReleaser,
-		goUser:         config.GoUser,
-		goPAT:          config.GoPAT,
+		dockerReleaser:  config.DockerReleaser,
+		goUser:          config.GoUser,
+		goPAT:           config.GoPAT,
+		selfServiceName: config.SelfServiceName,
 	}, nil
 }
 
@@ -99,8 +106,14 @@ func (gsp *goServiceProcessor) writeDockerfile(service *model.Service) error {
 	if service.Configuration.Go.Service.BinaryDirectory != "" {
 		serviceBindaryDir = service.Configuration.Go.Service.BinaryDirectory
 	}
+
+	finalBaseImage := defaultBaseImage
+	if gsp.selfServiceName != "" && service.Name.Name == gsp.selfServiceName {
+		finalBaseImage = dockerCliBaseImage
+	}
 	templateData := map[string]string{
 		"ServiceBinaryDir": serviceBindaryDir,
+		"FinalBaseImage":   finalBaseImage,
 	}
 	if err := utils.GenerateFileFromTemplate(dockerfilePath, goservicetemplate.Dockerfile, templateData); err != nil {
 		return err
