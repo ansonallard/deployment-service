@@ -101,8 +101,9 @@ func (gsp *goServiceProcessor) SetVersionFile(service *model.Service, version *s
 }
 
 type dockerfileTemplateData struct {
-	ServiceBinaryDir string
-	FinalBaseImage   string
+	ServiceBinaryDir     string
+	FinalBaseImage       string
+	IncludeDockerCompose bool
 }
 
 func (gsp *goServiceProcessor) writeDockerfile(service *model.Service) error {
@@ -113,12 +114,15 @@ func (gsp *goServiceProcessor) writeDockerfile(service *model.Service) error {
 	}
 
 	finalBaseImage := defaultBaseImage
+	includeDockerCompose := false
 	if gsp.selfServiceName != "" && service.Name.Name == gsp.selfServiceName {
 		finalBaseImage = dockerCliBaseImage
+		includeDockerCompose = true
 	}
 	templateData := dockerfileTemplateData{
-		ServiceBinaryDir: serviceBindaryDir,
-		FinalBaseImage:   finalBaseImage,
+		ServiceBinaryDir:     serviceBindaryDir,
+		FinalBaseImage:       finalBaseImage,
+		IncludeDockerCompose: includeDockerCompose,
 	}
 	if err := utils.GenerateFileFromTemplate(dockerfilePath, goservicetemplate.Dockerfile, templateData); err != nil {
 		return err

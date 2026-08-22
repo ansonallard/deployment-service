@@ -17,6 +17,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /app/service_binary {{.ServiceBinaryDir
 
 FROM {{.FinalBaseImage}}
 
+{{if .IncludeDockerCompose}}
+COPY --from=docker/compose-bin:v2.29.7 /docker-compose /usr/local/lib/docker/cli-plugins/docker-compose
+{{end}}
+
 COPY --from=builder /app/service_binary /service_binary
 
 COPY --from=builder /app/logs /logs
