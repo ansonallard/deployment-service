@@ -24,14 +24,14 @@ RUN oapi-codegen -config=config.yaml {{.OpenAPIFileName}}
 RUN mv embed.go lib/{{.PackageName}}/ && \
     cp {{.OpenAPIFileName}} lib/{{.PackageName}}/
 
-# Download dependencies to create go.sum
-RUN go mod download
+# Reconcile go.sum with actual imports (may be a no-op if the client has no third-party deps)
+RUN go mod tidy
 
 # Create ZIP with proper structure: module@version/...
 RUN MODULE_DIR="{{.ModulePath}}@{{.Version}}" && \
     mkdir -p "$MODULE_DIR" && \
     cp go.mod "$MODULE_DIR/" && \
-    cp go.sum "$MODULE_DIR/" && \
+    if [ -f go.sum ]; then cp go.sum "$MODULE_DIR/"; fi && \
     cp -r lib "$MODULE_DIR/" && \
     zip -r module.zip "$MODULE_DIR"
 
