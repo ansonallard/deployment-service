@@ -15,7 +15,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/service_binary {{.ServiceBinaryDir}} && \
     mkdir -p /app/logs
 
-FROM gcr.io/distroless/static
+FROM {{.FinalBaseImage}}
 
 COPY --from=builder /app/service_binary /service_binary
 
