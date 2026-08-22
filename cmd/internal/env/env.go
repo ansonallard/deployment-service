@@ -102,7 +102,7 @@ func GetNPMRCPath(ctx context.Context) string {
 }
 
 func GetPathToDockerCLI() string {
-	return getOptionalEnvVar("PATH_TO_DOCKER_CLI", "/usr/bin/docker")
+	return getOptionalEnvVar("PATH_TO_DOCKER_CLI", "/usr/local/bin/docker")
 }
 
 func GetGitHubPAT(ctx context.Context) string {
