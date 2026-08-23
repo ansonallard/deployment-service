@@ -12,15 +12,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// CLIType is an enum for Docker Compose CLI version.
-type CLIType int
-
-const (
-	V1                      CLIType = iota // docker-compose
-	V2                                     // docker compose
-	dockerComposeVersionKey = "VERSION"
-)
-
 // ComposeRunner defines the interface for running docker-compose commands.
 type ComposeRunner interface {
 	Up(ctx context.Context, composeDir string, version *semver.Version) error
@@ -30,8 +21,6 @@ type ComposeRunner interface {
 
 // Config holds configuration options for the ComposeRunner.
 type Config struct {
-	// CLI version to use: V1 (docker-compose) or V2 (docker compose)
-	CLI             CLIType
 	DockerHome      string
 	PathToDockerCLI string
 }
@@ -43,10 +32,6 @@ type runner struct {
 
 // New creates a new ComposeRunner instance with the given configuration.
 func New(config Config) ComposeRunner {
-	// Default to V1 if not specified
-	if config.CLI != V1 && config.CLI != V2 {
-		config.CLI = V1
-	}
 	return &runner{
 		config: config,
 	}
@@ -76,17 +61,7 @@ func (r *runner) runComposeCommand(ctx context.Context, version *semver.Version,
 		return fmt.Errorf("composeDir is not a directory: %s", composeDir)
 	}
 
-	var cmd *exec.Cmd
-
-	switch r.config.CLI {
-	case V1:
-		cmd = exec.CommandContext(ctx, "/opt/homebrew/Cellar/docker-compose/2.33.1/bin/docker-compose", args...)
-	case V2:
-		cmd = exec.CommandContext(ctx, r.config.PathToDockerCLI, append([]string{"compose"}, args...)...)
-	default:
-		return fmt.Errorf("unsupported compose CLI version: %v", r.config.CLI)
-	}
-
+	cmd := exec.CommandContext(ctx, r.config.PathToDockerCLI, append([]string{"compose"}, args...)...)
 	cmd.Dir = composeDir
 	cmd.Env = append(os.Environ(), fmt.Sprintf("DOCKER_HOME=%s", r.config.DockerHome))
 
