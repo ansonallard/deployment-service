@@ -143,8 +143,9 @@ func main() {
 	}
 
 	dockerCompose := compose.New(compose.Config{
-		CLI:        compose.V2,
-		DockerHome: env.GetDockerDeployHost(ctx),
+		CLI:             compose.V2,
+		DockerHome:      env.GetDockerDeployHost(ctx),
+		PathToDockerCLI: env.GetPathToDockerCLI(),
 	})
 
 	envWriter := service.NewEnvFileWriter()

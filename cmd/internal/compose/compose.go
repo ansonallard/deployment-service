@@ -30,12 +30,10 @@ type ComposeRunner interface {
 
 // Config holds configuration options for the ComposeRunner.
 type Config struct {
-	// Optional: Docker host socket (e.g., for Colima)
-	// DockerHost string
-
 	// CLI version to use: V1 (docker-compose) or V2 (docker compose)
-	CLI        CLIType
-	DockerHome string
+	CLI             CLIType
+	DockerHome      string
+	PathToDockerCLI string
 }
 
 // runner implements ComposeRunner
@@ -84,11 +82,7 @@ func (r *runner) runComposeCommand(ctx context.Context, version *semver.Version,
 	case V1:
 		cmd = exec.CommandContext(ctx, "/opt/homebrew/Cellar/docker-compose/2.33.1/bin/docker-compose", args...)
 	case V2:
-		dockerPath, err := exec.LookPath("docker")
-		if err != nil {
-			return fmt.Errorf("docker not found in PATH: %w", err)
-		}
-		cmd = exec.CommandContext(ctx, dockerPath, append([]string{"compose"}, args...)...)
+		cmd = exec.CommandContext(ctx, r.config.PathToDockerCLI, append([]string{"compose"}, args...)...)
 	default:
 		return fmt.Errorf("unsupported compose CLI version: %v", r.config.CLI)
 	}
