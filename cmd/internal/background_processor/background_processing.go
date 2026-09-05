@@ -129,9 +129,6 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 		}
 	}()
 
-	unlock := bp.acquireDeployLock(ctx, service)
-	defer unlock()
-
 	_, checkSpan := tracer.Start(ctx, "background.has_new_commit",
 		trace.WithAttributes(attribute.String("service.name", service.Name.Name)),
 	)
@@ -143,12 +140,18 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 		return err
 	}
 	checkSpan.End()
+
 	if !hasNewCommit {
 		if service.Configuration.DockerCompose != nil && service.Configuration.DockerCompose.RefreshImages {
+			unlock := bp.acquireDeployLock(ctx, service)
+			defer unlock()
 			return bp.dockerComposeProcessor.RefreshDockerComposeApplication(ctx, service)
 		}
 		return nil
 	}
+
+	unlock := bp.acquireDeployLock(ctx, service)
+	defer unlock()
 
 	calcCtx, calcSpan := tracer.Start(ctx, "background.calculate_next_version",
 		trace.WithAttributes(attribute.String("service.name", service.Name.Name)),
