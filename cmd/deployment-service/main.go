@@ -233,6 +233,7 @@ func main() {
 
 	interval, err := env.GetBackgroundProcessingInterval(ctx)
 	if err != nil {
+		log.Fatal().Msg("Could not parse background processing interval")
 	}
 
 	go func() {
