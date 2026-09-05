@@ -29,6 +29,7 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/service_version"
 	"github.com/ansonallard/deployment_service_go_client/lib/deployment_service_go_client"
 	"github.com/ansonallard/go_utils/logging"
+	"github.com/ansonallard/go_utils/metrics"
 	"github.com/ansonallard/go_utils/openapi/ierr"
 	"github.com/ansonallard/go_utils/tracing"
 	"github.com/getkin/kin-openapi/openapi3filter"
@@ -293,6 +294,9 @@ func main() {
 	deployment_service_go_client.RegisterHandlersWithOptions(router, strictHandler, deployment_service_go_client.GinServerOptions{
 		BaseURL: "/v1",
 	})
+
+	// Metrics
+	metrics.StartMetricsServer(ctx)
 
 	// Start server
 	log.Info().Uint16("port", port).Msgf("Server starting on :%d", port)

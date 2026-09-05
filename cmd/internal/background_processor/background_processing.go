@@ -13,6 +13,7 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/npm"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/openapi"
 	"github.com/ansonallard/deployment-service/cmd/internal/background_processor/utils"
+	"github.com/ansonallard/deployment-service/cmd/internal/metrics"
 	"github.com/ansonallard/deployment-service/cmd/internal/model"
 	"github.com/ansonallard/deployment-service/cmd/internal/version"
 	"github.com/go-git/go-git/v5"
@@ -120,6 +121,14 @@ type backgroundProcessor struct {
 func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *model.Service) error {
 	log := zerolog.Ctx(ctx)
 
+	start := time.Now().UTC()
+	var buildType string
+	defer func() {
+		if buildType != "" {
+			metrics.BuildDuration.WithLabelValues(service.Name.Name, buildType).Observe(float64(time.Since(start).Milliseconds()))
+		}
+	}()
+
 	unlock := bp.acquireDeployLock(ctx, service)
 	defer unlock()
 
@@ -209,71 +218,108 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 	buildCtx, buildSpan := tracer.Start(ctx, "background.build",
 		trace.WithAttributes(attribute.String("service.name", service.Name.Name)),
 	)
+
+	buildType, err = bp.runBuild(buildCtx, buildSpan, log, service, nextVersion)
+	buildSpan.End()
+
+	if err != nil {
+		if buildType != "" {
+			metrics.BuildAttempts.WithLabelValues(service.Name.Name, buildType, "failure").Inc()
+		}
+		return err
+	}
+	if buildType != "" {
+		metrics.BuildAttempts.WithLabelValues(service.Name.Name, buildType, "success").Inc()
+	}
+
+	return nil
+}
+
+func (bp *backgroundProcessor) runBuild(
+	buildCtx context.Context,
+	buildSpan trace.Span,
+	log *zerolog.Logger,
+	service *model.Service,
+	nextVersion *semver.Version,
+) (buildType string, err error) {
+	start := time.Now()
+	defer func() {
+		if buildType != "" {
+			metrics.BuildDuration.WithLabelValues(service.Name.Name, buildType).Observe(time.Since(start).Seconds())
+		}
+	}()
+
+	cfg := service.Configuration
 	switch {
-	case serviceConfiguration.Npm != nil && serviceConfiguration.Npm.Service != nil:
-		if err := bp.npmServiceProcessor.BuildNpmService(buildCtx, service, nextVersion); err != nil {
+	case cfg.Npm != nil && cfg.Npm.Service != nil:
+		buildType = "npm"
+		if err = bp.npmServiceProcessor.BuildNpmService(buildCtx, service, nextVersion); err != nil {
 			buildSpan.RecordError(err)
 			buildSpan.SetStatus(codes.Error, err.Error())
-			buildSpan.End()
-			return err
+			return buildType, err
 		}
-	case serviceConfiguration.OpenAPI != nil:
+
+	case cfg.OpenAPI != nil:
+		buildType = "openapi"
 		log.Info().
 			Str("service", service.Name.Name).
 			Str("nextVersion", nextVersion.String()).
 			Msg("Building and publishing OpenAPI npm client")
 
-		if err := bp.openAPIProcessor.BuildAndDeployOpenAPIClient(buildCtx, service, nextVersion); err != nil {
+		if err = bp.openAPIProcessor.BuildAndDeployOpenAPIClient(buildCtx, service, nextVersion); err != nil {
 			buildSpan.RecordError(err)
 			buildSpan.SetStatus(codes.Error, err.Error())
-			buildSpan.End()
-			return fmt.Errorf("failed to build and deploy OpenAPI npm client: %w", err)
+			return buildType, fmt.Errorf("failed to build and deploy OpenAPI npm client: %w", err)
 		}
-	case serviceConfiguration.Go != nil && serviceConfiguration.Go.Service != nil:
+
+	case cfg.Go != nil && cfg.Go.Service != nil:
+		buildType = "go"
 		log.Info().
 			Str("service", service.Name.Name).
 			Str("nextVersion", nextVersion.String()).
 			Msg("Building Go service")
 
-		if err := bp.goServiceProcessor.BuildGoService(buildCtx, service, nextVersion); err != nil {
+		if err = bp.goServiceProcessor.BuildGoService(buildCtx, service, nextVersion); err != nil {
 			buildSpan.RecordError(err)
 			buildSpan.SetStatus(codes.Error, err.Error())
-			buildSpan.End()
-			return fmt.Errorf("failed to build Go service: %w", err)
+			return buildType, fmt.Errorf("failed to build Go service: %w", err)
 		}
-	case serviceConfiguration.DockerCompose != nil:
+
+	case cfg.DockerCompose != nil:
+		buildType = "docker_compose"
 		log.Info().
 			Str("service", service.Name.Name).
 			Str("nextVersion", nextVersion.String()).
 			Msg("Deploying Docker Compose application")
 
-		if err := bp.dockerComposeProcessor.DeployDockerComposeApplication(buildCtx, service, nextVersion); err != nil {
+		if err = bp.dockerComposeProcessor.DeployDockerComposeApplication(buildCtx, service, nextVersion); err != nil {
 			buildSpan.RecordError(err)
 			buildSpan.SetStatus(codes.Error, err.Error())
-			buildSpan.End()
-			return fmt.Errorf("failed to deploy Docker Compose application: %w", err)
+			return buildType, fmt.Errorf("failed to deploy Docker Compose application: %w", err)
 		}
-	case serviceConfiguration.DockerBuild != nil:
+
+	case cfg.DockerBuild != nil:
+		buildType = "docker_build"
 		log.Info().
 			Str("service", service.Name.Name).
 			Str("nextVersion", nextVersion.String()).
 			Msg("Building and pushing Docker image")
 
-		if err := bp.dockerBuildProcessor.BuildAndPushDockerImage(buildCtx, service, nextVersion); err != nil {
+		if err = bp.dockerBuildProcessor.BuildAndPushDockerImage(buildCtx, service, nextVersion); err != nil {
 			buildSpan.RecordError(err)
 			buildSpan.SetStatus(codes.Error, err.Error())
-			buildSpan.End()
-			return fmt.Errorf("failed to build and push Docker image: %w", err)
+			return buildType, fmt.Errorf("failed to build and push Docker image: %w", err)
 		}
+
 	default:
 		log.Error().
 			Str("service", service.Name.Name).
 			Str("nextVersion", nextVersion.String()).
 			Msg("Service type not supported")
+		// original behavior: logs only, does not return an error
 	}
-	buildSpan.End()
 
-	return nil
+	return buildType, nil
 }
 
 func (bp *backgroundProcessor) hasNewCommit(ctx context.Context, service *model.Service) (bool, error) {
