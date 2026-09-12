@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
 )
 
 var tracer = otel.Tracer("deployment-service.processor.openapi")
@@ -216,21 +217,41 @@ func (op *openAPIProcessor) BuildAndDeployOpenAPIClient(
 		return fmt.Errorf("openAPI configuration is nil")
 	}
 
+	openAPI := service.Configuration.OpenAPI.OpenAPI
+
+	errGroup, ctx := errgroup.WithContext(ctx)
+
 	// Build TypeScript client if configured
-	if service.Configuration.OpenAPI.OpenAPI.TypescriptClient != nil {
-		if err := op.buildAndDeployTypescriptClient(ctx, service, nextVersion); err != nil {
-			return fmt.Errorf("failed to build TypeScript client: %w", err)
-		}
+	if openAPI.TypescriptClient != nil {
+		errGroup.Go(func() error {
+			ctx, span := tracer.Start(ctx, "openapi.build.typescript")
+			defer span.End()
+
+			if err := op.buildAndDeployTypescriptClient(ctx, service, nextVersion); err != nil {
+				span.RecordError(err)
+				return fmt.Errorf("failed to build TypeScript client: %w", err)
+			}
+
+			return nil
+		})
 	}
 
 	// Build Go client if configured
-	if service.Configuration.OpenAPI.OpenAPI.GoClient != nil {
-		if err := op.buildAndDeployGoClient(ctx, service, nextVersion); err != nil {
-			return fmt.Errorf("failed to build Go client: %w", err)
-		}
+	if openAPI.GoClient != nil {
+		errGroup.Go(func() error {
+			ctx, span := tracer.Start(ctx, "openapi.build.go")
+			defer span.End()
+
+			if err := op.buildAndDeployGoClient(ctx, service, nextVersion); err != nil {
+				span.RecordError(err)
+				return fmt.Errorf("failed to build Go client: %w", err)
+			}
+
+			return nil
+		})
 	}
 
-	return nil
+	return errGroup.Wait()
 }
 
 func (op *openAPIProcessor) buildAndDeployTypescriptClient(
