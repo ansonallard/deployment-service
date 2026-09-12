@@ -124,7 +124,7 @@ func NewOpenAPIProcessor(config OpenAPIProcessorConfig) (OpenAPIProcessor, error
 	if config.CiCommitAuthor == nil {
 		return nil, fmt.Errorf("ciCommitAuthor not provided")
 	}
-	if config.RustClientConfig != nil {
+	if config.RustClientConfig == nil {
 		return nil, fmt.Errorf("RustClientConfig not provided")
 	}
 	if config.RustClientConfig.Token == "" {
