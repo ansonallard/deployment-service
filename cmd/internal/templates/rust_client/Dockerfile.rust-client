@@ -1,0 +1,21 @@
+FROM openapitools/openapi-generator-cli:latest AS generate
+WORKDIR /local
+COPY {{.OpenAPIFileName}} ./
+RUN docker-entrypoint.sh generate \
+    -i /local/{{.OpenAPIFileName}} \
+    -g rust-server \
+    -o /local/generated \
+    --additional-properties packageName={{.PackageName}},packageVersion={{.Version}}
+
+FROM rust:1-slim AS build
+WORKDIR /build
+COPY --from=generate /local/generated/ ./
+
+ENV CARGO_REGISTRIES_{{.RegistryNameUpper}}_INDEX="{{.RegistryIndex}}"
+ENV CARGO_REGISTRIES_{{.RegistryNameUpper}}_CREDENTIAL_PROVIDER="cargo:token"
+
+RUN --mount=type=secret,id=cargo_registry_token \
+    export CARGO_REGISTRIES_{{.RegistryNameUpper}}_TOKEN="Bearer $(cat /run/secrets/cargo_registry_token)" && \
+    cargo fmt && \
+    cargo build --release --all-targets && \
+    cargo publish --registry {{.RegistryName}} --allow-dirty

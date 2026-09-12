@@ -182,6 +182,11 @@ func main() {
 			ModuleBasePath: env.GetArtifactPrefix(ctx),
 			Token:          env.GetArtifactRegistryPAT(ctx),
 		},
+		RustClientConfig: &openapiBp.RustClientConfig{
+			Token:         env.GetArtifactRegistryPAT(ctx),
+			RegistryName:  env.GetCargoRegistryName(ctx),
+			RegistryIndex: env.GetCargoRegistryIndex(ctx),
+		},
 		CiCommitAuthor: &ciCommitAuthor,
 		GithubClient:   github.NewGithubClient(ctx, env.GetGitHubPAT(ctx), env.GetGitHubOwner(ctx)),
 	})

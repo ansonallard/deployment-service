@@ -16,6 +16,7 @@ import (
 	"github.com/ansonallard/deployment-service/cmd/internal/model"
 	"github.com/ansonallard/deployment-service/cmd/internal/releaser"
 	goclient "github.com/ansonallard/deployment-service/cmd/internal/templates/go_client"
+	rustclient "github.com/ansonallard/deployment-service/cmd/internal/templates/rust_client"
 	typescriptclient "github.com/ansonallard/deployment-service/cmd/internal/templates/typescript_client"
 	yaml "github.com/oasdiff/yaml3"
 	"github.com/rs/zerolog"
@@ -58,6 +59,17 @@ type goClientTemplateData struct {
 	CiCommitName    string
 }
 
+type rustClientTemplateData struct {
+	PackageName       string
+	Version           string
+	OpenAPIFileName   string
+	OutputPath        string
+	ServiceName       string
+	RegistryName      string
+	RegistryNameUpper string
+	RegistryIndex     string
+}
+
 type TypescriptClientConfig struct {
 	NpmrcData    []byte
 	PackageScope string // e.g., "ansonallard" for @ansonallard/package-name
@@ -68,9 +80,16 @@ type GoClientConfig struct {
 	ModuleBasePath string // e.g., "gitea.yourcompany.com/clients"
 }
 
+type RustClientConfig struct {
+	Token         string // Authentication token (PAT) for Gitea Cargo registry
+	RegistryName  string // e.g. "gitea" — the [registries.<name>] key
+	RegistryIndex string // e.g. "sparse+https://domain/api/packages/<owner>/cargo/"
+}
+
 type OpenAPIProcessorConfig struct {
 	TypescriptClientConfig *TypescriptClientConfig
 	GoClientConfig         *GoClientConfig
+	RustClientConfig       *RustClientConfig
 	DockerReleaser         releaser.DockerReleaser
 	RegistryUrl            string
 	GithubClient           github.GitHubClient
@@ -105,9 +124,22 @@ func NewOpenAPIProcessor(config OpenAPIProcessorConfig) (OpenAPIProcessor, error
 	if config.CiCommitAuthor == nil {
 		return nil, fmt.Errorf("ciCommitAuthor not provided")
 	}
+	if config.RustClientConfig != nil {
+		return nil, fmt.Errorf("RustClientConfig not provided")
+	}
+	if config.RustClientConfig.Token == "" {
+		return nil, fmt.Errorf("RustClientConfig.Token not provided")
+	}
+	if config.RustClientConfig.RegistryName == "" {
+		return nil, fmt.Errorf("RustClientConfig.RegistryName not provided")
+	}
+	if config.RustClientConfig.RegistryIndex == "" {
+		return nil, fmt.Errorf("RustClientConfig.RegistryIndex not provided")
+	}
 	return &openAPIProcessor{
 		typescriptClientConfig: config.TypescriptClientConfig,
 		goClientConfig:         config.GoClientConfig,
+		rustClientConfig:       config.RustClientConfig,
 		dockerReleaser:         config.DockerReleaser,
 		registryUrl:            config.RegistryUrl,
 		githubClient:           config.GithubClient,
@@ -118,6 +150,7 @@ func NewOpenAPIProcessor(config OpenAPIProcessorConfig) (OpenAPIProcessor, error
 type openAPIProcessor struct {
 	typescriptClientConfig *TypescriptClientConfig
 	goClientConfig         *GoClientConfig
+	rustClientConfig       *RustClientConfig
 	dockerReleaser         releaser.DockerReleaser
 	registryUrl            string
 	githubClient           github.GitHubClient
@@ -245,6 +278,20 @@ func (op *openAPIProcessor) BuildAndDeployOpenAPIClient(
 			if err := op.buildAndDeployGoClient(ctx, service, nextVersion); err != nil {
 				span.RecordError(err)
 				return fmt.Errorf("failed to build Go client: %w", err)
+			}
+
+			return nil
+		})
+	}
+
+	// Build RustGo client if configured
+	if openAPI.RustClient != nil {
+		errGroup.Go(func() error {
+			ctx, span := tracer.Start(ctx, "openapi.build.rust")
+			defer span.End()
+
+			if err := op.buildAndDeployRustClient(ctx, service, nextVersion); err != nil {
+				return fmt.Errorf("failed to build Rust client: %w", err)
 			}
 
 			return nil
@@ -740,4 +787,125 @@ func (op *openAPIProcessor) generateGoClientConfigFilesForGithub(
 		return fmt.Errorf("failed to generate Dockerfile: %w", err)
 	}
 	return nil
+}
+
+func (op *openAPIProcessor) buildAndDeployRustClient(
+	ctx context.Context,
+	service *model.Service,
+	nextVersion *semver.Version,
+) error {
+	log := zerolog.Ctx(ctx)
+
+	log.Info().
+		Str("service", service.Name.Name).
+		Str("version", nextVersion.String()).
+		Msg("Starting Rust OpenAPI client generation and publication")
+
+	// Create build directory
+	buildDir, err := op.createOpenAPIClientBuildDir(service, nextVersion, "rust")
+	if err != nil {
+		return fmt.Errorf("failed to create build directory: %w", err)
+	}
+
+	defer func() {
+		// Cleanup build directory
+		if err := os.RemoveAll(buildDir); err != nil {
+			log.Error().Err(err).Str("buildDir", buildDir).Msg("Failed to cleanup build directory")
+		}
+	}()
+
+	// Generate Rust client using Docker
+	imageName := fmt.Sprintf("%s-openapi-rust-client-builder", service.Name.Name)
+
+	defer func() {
+		// Cleanup Docker image
+		if err := op.dockerReleaser.RemoveImage(
+			ctx, op.generateOpenAPIDockerFullyQualifiedImageName(imageName, nextVersion),
+		); err != nil {
+			log.Error().Err(err).Str("imageTag", imageName).Msg("Failed to remove Docker image")
+		}
+	}()
+
+	// Generate configuration files for Rust client
+	if err := op.generateRustClientConfigFiles(buildDir, service, nextVersion); err != nil {
+		return fmt.Errorf("failed to generate Rust client config files: %w", err)
+	}
+
+	// Copy OpenAPI spec
+	if err := op.copyOpenAPISpec(service, buildDir); err != nil {
+		return fmt.Errorf("failed to copy OpenAPI spec: %w", err)
+	}
+
+	// Build Rust client using Docker
+	if err := op.buildRustClientDocker(ctx, buildDir, imageName, nextVersion); err != nil {
+		return fmt.Errorf("failed to build Rust client: %w", err)
+	}
+
+	log.Info().
+		Str("service", service.Name.Name).
+		Str("version", nextVersion.String()).
+		Msg("Successfully published Rust OpenAPI client to Gitea")
+
+	return nil
+}
+
+func (op *openAPIProcessor) generateRustClientName(service *model.Service) string {
+	var clientName string
+	switch {
+	case service.Configuration.OpenAPI.OpenAPI.RustClient != nil &&
+		service.Configuration.OpenAPI.OpenAPI.RustClient.Name.Name != "":
+		clientName = service.Configuration.OpenAPI.OpenAPI.RustClient.Name.Name
+	default:
+		clientName = fmt.Sprintf("%s_rust_client", service.Name.Name)
+	}
+	// Rust crate name convention: snake_case, lowercase
+	clientName = strings.ToLower(clientName)
+	clientName = strings.ReplaceAll(clientName, "-", "_")
+	return clientName
+}
+
+func (op *openAPIProcessor) generateRustClientConfigFiles(
+	buildDir string,
+	service *model.Service,
+	version *semver.Version,
+) error {
+	packageName := op.generateRustClientName(service)
+
+	templateData := rustClientTemplateData{
+		PackageName:       packageName,
+		Version:           version.String(),
+		OpenAPIFileName:   filepath.Base(service.Configuration.OpenAPI.OpenAPI.YamlFile),
+		ServiceName:       service.Name.Name,
+		RegistryName:      op.rustClientConfig.RegistryName,
+		RegistryNameUpper: strings.ToUpper(op.rustClientConfig.RegistryName),
+		RegistryIndex:     op.rustClientConfig.RegistryIndex,
+	}
+
+	// Generate Dockerfile
+	if err := utils.GenerateFileFromTemplate(
+		filepath.Join(buildDir, "Dockerfile"),
+		rustclient.DockerfileTemplate,
+		templateData,
+	); err != nil {
+		return fmt.Errorf("failed to generate Dockerfile: %w", err)
+	}
+
+	return nil
+}
+
+func (op *openAPIProcessor) buildRustClientDocker(
+	ctx context.Context,
+	buildDir string,
+	imageName string,
+	version *semver.Version,
+) error {
+	return op.dockerReleaser.BuildImageWithSecrets(
+		ctx,
+		buildDir,
+		"Dockerfile",
+		[]string{op.generateOpenAPIDockerFullyQualifiedImageName(imageName, version)},
+		map[string][]byte{
+			releaser.CargoRegistryTokenKey: []byte(op.rustClientConfig.Token),
+		},
+	)
 }

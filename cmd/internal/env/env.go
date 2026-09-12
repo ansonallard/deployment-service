@@ -119,6 +119,14 @@ func GetTempoURI(ctx context.Context) string {
 	return fmt.Sprintf("%s:%s", tempoHost, tempoPort)
 }
 
+func GetCargoRegistryIndex(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "CARGO_REGISTRY_INDEX")
+}
+
+func GetCargoRegistryName(ctx context.Context) string {
+	return getRequiredEnvVar(ctx, "CARGO_REGISTRY_NAME")
+}
+
 func GetLogLevel() zerolog.Level {
 	logLevel := strings.ToLower(getOptionalEnvVar("LOG_LEVEL", "info"))
 	switch logLevel {
