@@ -7,9 +7,11 @@ RUN docker-entrypoint.sh generate \
     -o /local/generated \
     --additional-properties packageName={{.PackageName}},packageVersion={{.Version}}
 
-FROM rust:1 AS build
+FROM rust:1-slim AS build
 WORKDIR /build
 COPY --from=generate /local/generated/ ./
+
+RUN rustup component add rustfmt
 
 ENV CARGO_REGISTRIES_{{.RegistryNameUpper}}_INDEX="{{.RegistryIndex}}"
 ENV CARGO_REGISTRIES_{{.RegistryNameUpper}}_CREDENTIAL_PROVIDER="cargo:token"
@@ -17,5 +19,5 @@ ENV CARGO_REGISTRIES_{{.RegistryNameUpper}}_CREDENTIAL_PROVIDER="cargo:token"
 RUN --mount=type=secret,id=cargo_registry_token \
     export CARGO_REGISTRIES_{{.RegistryNameUpper}}_TOKEN="Bearer $(cat /run/secrets/cargo_registry_token)" && \
     cargo fmt && \
-    cargo build --release --all-targets && \
-    cargo publish --registry {{.RegistryName}} --allow-dirty
+    cargo build --release --no-default-features --features client,server && \
+    cargo publish --registry {{.RegistryName}} --allow-dirty --no-default-features --features client,server
