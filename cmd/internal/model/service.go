@@ -40,9 +40,14 @@ type OpenAPIServiceConfiguration struct {
 	YamlFile         string
 	TypescriptClient *TypescriptClient
 	GoClient         *GoClient
+	RustClient       *RustClient
 }
 
 type TypescriptClient struct {
+	Name
+}
+
+type RustClient struct {
 	Name
 }
 
@@ -273,6 +278,12 @@ func (s *Service) toOpenApiExternal(serviceDto *deployment_service_go_client.Ser
 		}
 	}
 
+	if s.Configuration.OpenAPI.OpenAPI.RustClient != nil {
+		openapiConfig.RustClient = &deployment_service_go_client.OpenAPIRustClientConfig{
+			Name: s.Configuration.OpenAPI.OpenAPI.RustClient.Name.Name,
+		}
+	}
+
 	serviceDto.Configuration = deployment_service_go_client.ServiceConfiguration{}
 	serviceDto.Configuration.FromOpenAPIConfiguration(deployment_service_go_client.OpenAPIConfiguration{
 		Openapi: openapiConfig,
@@ -466,6 +477,12 @@ func (s *Service) handleOpenApiconfiugration(serviceConfig deployment_service_go
 		internalServiceConfig.OpenAPI.OpenAPI.GoClient = &GoClient{
 			Name:     Name{Name: openapiConfigurationDto.Openapi.GoClient.Name},
 			Registry: fromOpenAPIGoClientConfigRegistryExternal(openapiConfigurationDto.Openapi.GoClient.Registry),
+		}
+	}
+
+	if openapiConfigurationDto.Openapi.RustClient != nil {
+		internalServiceConfig.OpenAPI.OpenAPI.RustClient = &RustClient{
+			Name: Name{Name: openapiConfigurationDto.Openapi.RustClient.Name},
 		}
 	}
 
