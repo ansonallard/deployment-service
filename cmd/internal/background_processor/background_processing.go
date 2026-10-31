@@ -423,8 +423,8 @@ func (bp *backgroundProcessor) commitChanges(ctx context.Context, repoPath strin
 	}
 
 	if !skipStaging {
-		if err = workTree.AddGlob("*"); err != nil {
-			return err
+		if err = workTree.AddWithOptions(&git.AddOptions{All: true}); err != nil {
+			return fmt.Errorf("failed to stage changes: %w", err)
 		}
 	}
 	_, err = workTree.Commit(fmt.Sprintf(ciCommitMsgFormat, version.String()), &git.CommitOptions{
