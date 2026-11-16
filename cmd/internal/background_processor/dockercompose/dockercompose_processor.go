@@ -99,16 +99,18 @@ func (dcp *dockerComposeProcessor) RefreshDockerComposeApplication(
 	defer span.End()
 
 	log := zerolog.Ctx(ctx)
+
+	// Env files must exist before any compose command: the compose file
+	// interpolates ${VARS} from them, and pull fails without them.
+	log.Debug().Str("service", service.Name.Name).Msg("Writing env files")
+	if err := dcp.writeEnvFiles(ctx, service); err != nil {
+		return err
+	}
+
 	log.Debug().Str("service", service.Name.Name).Msg("Pulling latest images")
 
 	if err := dcp.compose.Pull(ctx, service.GitRepoFilePath); err != nil {
 		return fmt.Errorf("failed to pull images: %w", err)
-	}
-
-	log.Debug().Str("service", service.Name.Name).Msg("Writing env files")
-
-	if err := dcp.writeEnvFiles(ctx, service); err != nil {
-		return err
 	}
 
 	log.Debug().Str("service", service.Name.Name).Msg("Starting compose application")
