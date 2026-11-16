@@ -109,7 +109,7 @@ type dockerfileTemplateData struct {
 	IncludeDockerCompose bool
 }
 
-func (gsp *goServiceProcessor) writeDockerfile(service *model.Service) error {
+func (gsp *goServiceProcessor) writeDockerfile(service *model.Service, artifacts *utils.ArtifactSet) error {
 	dockerfilePath := path.Join(service.GitRepoFilePath, dockerfileName)
 	serviceBindaryDir := "."
 	if service.Configuration.Go.Service.BinaryDirectory != "" {
@@ -127,10 +127,10 @@ func (gsp *goServiceProcessor) writeDockerfile(service *model.Service) error {
 		FinalBaseImage:       finalBaseImage,
 		IncludeDockerCompose: includeDockerCompose,
 	}
-	if err := utils.GenerateFileFromTemplate(dockerfilePath, goservicetemplate.Dockerfile, templateData); err != nil {
+	if err := artifacts.Register(dockerfilePath); err != nil {
 		return err
 	}
-	return nil
+	return utils.GenerateFileFromTemplate(dockerfilePath, goservicetemplate.Dockerfile, templateData)
 }
 
 func (gsp *goServiceProcessor) BuildGoService(
@@ -147,35 +147,29 @@ func (gsp *goServiceProcessor) BuildGoService(
 	log := zerolog.Ctx(ctx)
 	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Building Go service image")
 
-	if err := gsp.writeDockerfile(service); err != nil {
-		return err
-	}
-
-	tags := []string{
-		gsp.dockerReleaser.CreateArtifactTag(service.Name.Name, nextVersion),
-		gsp.dockerReleaser.CreateLatestArtifactTag(service.Name.Name),
-	}
-
-	if err := gsp.dockerReleaser.BuildImageWithSecrets(
-		ctx,
-		service.GitRepoFilePath,
-		dockerfileName,
-		tags,
-		map[string][]byte{
-			releaser.GoUserKey: []byte(gsp.goUser),
-			releaser.GoPATKey:  []byte(gsp.goPAT),
-		},
-	); err != nil {
-		return err
-	}
-
-	for _, tag := range tags {
-		if err := gsp.dockerReleaser.PushImage(ctx, service.Name.Name, tag); err != nil {
+	return utils.WithArtifacts(service.GitRepoFilePath, func(artifacts *utils.ArtifactSet) error {
+		if err := gsp.writeDockerfile(service, artifacts); err != nil {
 			return err
 		}
-	}
 
-	log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Successfully built and pushed Go service image")
-
-	return nil
+		tags := []string{
+			gsp.dockerReleaser.CreateArtifactTag(service.Name.Name, nextVersion),
+			gsp.dockerReleaser.CreateLatestArtifactTag(service.Name.Name),
+		}
+		if err := gsp.dockerReleaser.BuildImageWithSecrets(ctx, service.GitRepoFilePath, dockerfileName, tags,
+			map[string][]byte{
+				releaser.GoUserKey: []byte(gsp.goUser),
+				releaser.GoPATKey:  []byte(gsp.goPAT),
+			},
+		); err != nil {
+			return err
+		}
+		for _, tag := range tags {
+			if err := gsp.dockerReleaser.PushImage(ctx, service.Name.Name, tag); err != nil {
+				return err
+			}
+		}
+		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Successfully built and pushed Go service image")
+		return nil
+	})
 }
