@@ -5,7 +5,7 @@ go 1.26.10
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/ansonallard/deployment_service_go_client v0.2.0
-	github.com/ansonallard/go_utils v0.8.1
+	github.com/ansonallard/go_utils v0.8.4
 	github.com/getkin/kin-openapi v0.152.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-git/go-git/v5 v5.19.3
