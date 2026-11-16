@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/ansonallard/deployment-service/cmd/internal/compose"
@@ -29,7 +30,7 @@ const (
 )
 
 type NPMServiceProcessor interface {
-	SetPackageJsonVersion(service *model.Service, version *semver.Version) error
+	SetPackageJsonVersion(service *model.Service, version *semver.Version) (changedPaths []string, err error)
 	BuildNpmService(
 		ctx context.Context, service *model.Service, nextVersion *semver.Version,
 	) error
@@ -70,7 +71,7 @@ func NewNPMServiceProcessor(config NPMServiceProcessorConfig) (NPMServiceProcess
 	}, nil
 }
 
-func (nsp *npmServiceProcessor) SetPackageJsonVersion(service *model.Service, version *semver.Version) error {
+func (nsp *npmServiceProcessor) SetPackageJsonVersion(service *model.Service, version *semver.Version) ([]string, error) {
 	_, span := tracer.Start(context.Background(), "npm.set_version",
 		trace.WithAttributes(
 			attribute.String("service.name", service.Name.Name),
@@ -80,25 +81,24 @@ func (nsp *npmServiceProcessor) SetPackageJsonVersion(service *model.Service, ve
 	defer span.End()
 
 	if _, err := os.Stat(service.GitRepoFilePath); err != nil {
-		return err
+		return nil, err
 	}
-
-	packageJsonFilePath := nsp.getPackageJsonPath(service.GitRepoFilePath)
-
+	packageJsonFilePath, err := filepath.Abs(nsp.getPackageJsonPath(service.GitRepoFilePath))
+	if err != nil {
+		return nil, err
+	}
 	fileBytes, err := os.ReadFile(packageJsonFilePath)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
 	packageJsonBytes, err := sjson.SetBytes(fileBytes, packageJSONVersionKey, version.String())
 	if err != nil {
-		return err
+		return nil, err
 	}
-
 	if err := os.WriteFile(packageJsonFilePath, packageJsonBytes, 0644); err != nil {
-		return nil
+		return nil, err
 	}
-	return nil
+	return []string{packageJsonFilePath}, nil
 }
 
 func (nsp *npmServiceProcessor) getPackageJsonPath(gitRepoFilePath string) string {

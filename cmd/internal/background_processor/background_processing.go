@@ -2,7 +2,10 @@ package backgroundprocessor
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -170,45 +173,36 @@ func (bp *backgroundProcessor) ProcessService(ctx context.Context, service *mode
 	_, setVerSpan := tracer.Start(ctx, "background.set_version",
 		trace.WithAttributes(attribute.String("service.name", service.Name.Name)),
 	)
+	var changedPaths []string
 	switch {
 	case serviceConfiguration.Npm != nil:
 		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Npm Service")
-		if err := bp.npmServiceProcessor.SetPackageJsonVersion(service, nextVersion); err != nil {
-			setVerSpan.RecordError(err)
-			setVerSpan.SetStatus(codes.Error, err.Error())
-			setVerSpan.End()
-			return err
-		}
+		changedPaths, err = bp.npmServiceProcessor.SetPackageJsonVersion(service, nextVersion)
 	case serviceConfiguration.OpenAPI != nil:
 		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("OpenAPI Service")
-		if err := bp.openAPIProcessor.SetOpenApiYamlVersion(service, nextVersion); err != nil {
-			setVerSpan.RecordError(err)
-			setVerSpan.SetStatus(codes.Error, err.Error())
-			setVerSpan.End()
-			return err
-		}
+		changedPaths, err = bp.openAPIProcessor.SetOpenApiYamlVersion(service, nextVersion)
 	case serviceConfiguration.Go != nil:
 		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Go Service")
-		if err := bp.goServiceProcessor.SetVersionFile(service, nextVersion); err != nil {
-			setVerSpan.RecordError(err)
-			setVerSpan.SetStatus(codes.Error, err.Error())
-			setVerSpan.End()
-			return err
-		}
+		changedPaths, err = bp.goServiceProcessor.SetVersionFile(service, nextVersion)
 	case serviceConfiguration.DockerCompose != nil:
 		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Docker Compose Service")
 	case serviceConfiguration.DockerBuild != nil:
 		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Docker Build Service")
 	}
+
+	if err != nil {
+		setVerSpan.RecordError(err)
+		setVerSpan.SetStatus(codes.Error, err.Error())
+		setVerSpan.End()
+		return err
+	}
+
 	setVerSpan.End()
 
 	if !bp.isDevMode {
-		var skipStaging bool
-		if serviceConfiguration.DockerCompose != nil || serviceConfiguration.DockerBuild != nil {
-			skipStaging = true
-		}
-		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).Msg("Commiting changes")
-		if err := bp.commitChanges(ctx, service.GitRepoFilePath, nextVersion, skipStaging); err != nil {
+		log.Info().Str("service", service.Name.Name).Str("nextVersion", nextVersion.String()).
+			Strs("changedPaths", changedPaths).Msg("Commiting changes")
+		if err := bp.commitChanges(ctx, service.GitRepoFilePath, nextVersion, changedPaths); err != nil {
 			return err
 		}
 
@@ -336,20 +330,8 @@ func (bp *backgroundProcessor) hasNewCommit(ctx context.Context, service *model.
 		return false, fmt.Errorf("failed to open repo: %w", err)
 	}
 
-	// Pull from remote
-	wt, err := repo.Worktree()
-	if err != nil {
-		return false, fmt.Errorf("failed to get worktree: %w", err)
-	}
-
-	err = wt.Pull(&git.PullOptions{
-		RemoteName: defaultOrigin,
-		Progress:   nil,
-		Force:      true,
-		Auth:       bp.sshAuth,
-	})
-	if err != nil && err != git.NoErrAlreadyUpToDate {
-		return false, fmt.Errorf("failed to pull: %w", err)
+	if err := bp.syncToRemote(ctx, repo); err != nil {
+		return false, err
 	}
 
 	// Get current HEAD
@@ -403,7 +385,45 @@ func (bp *backgroundProcessor) hasNewCommit(ctx context.Context, service *model.
 	return !foundSemver, nil
 }
 
-func (bp *backgroundProcessor) commitChanges(ctx context.Context, repoPath string, version *semver.Version, skipStaging bool) error {
+// syncToRemote makes the local checkout exactly match origin/<current branch>,
+// discarding any local modifications (e.g. generated Dockerfiles from prior builds).
+func (bp *backgroundProcessor) syncToRemote(ctx context.Context, repo *git.Repository) error {
+	head, err := repo.Head()
+	if err != nil {
+		return fmt.Errorf("failed to get HEAD: %w", err)
+	}
+	if !head.Name().IsBranch() {
+		return fmt.Errorf("HEAD is not on a branch: %s", head.Name())
+	}
+	branch := head.Name().Short()
+
+	err = repo.FetchContext(ctx, &git.FetchOptions{
+		RemoteName: defaultOrigin,
+		RefSpecs:   []config.RefSpec{"+refs/heads/*:refs/remotes/origin/*"},
+		Tags:       git.AllTags,
+		Force:      true,
+		Auth:       bp.sshAuth,
+	})
+	if err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
+		return fmt.Errorf("failed to fetch: %w", err)
+	}
+
+	remoteRef, err := repo.Reference(plumbing.NewRemoteReferenceName(defaultOrigin, branch), true)
+	if err != nil {
+		return fmt.Errorf("failed to resolve %s/%s: %w", defaultOrigin, branch, err)
+	}
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		return fmt.Errorf("failed to get worktree: %w", err)
+	}
+	if err := wt.Reset(&git.ResetOptions{Commit: remoteRef.Hash(), Mode: git.HardReset}); err != nil {
+		return fmt.Errorf("failed to hard reset to %s: %w", remoteRef.Hash(), err)
+	}
+	return nil
+}
+
+func (bp *backgroundProcessor) commitChanges(ctx context.Context, repoPath string, version *semver.Version, changedPaths []string) error {
 	ctx, span := tracer.Start(ctx, "background.commit",
 		trace.WithAttributes(
 			attribute.String("repo_path", repoPath),
@@ -412,7 +432,11 @@ func (bp *backgroundProcessor) commitChanges(ctx context.Context, repoPath strin
 	)
 	defer span.End()
 
-	repo, err := git.PlainOpen(repoPath)
+	repoRoot, err := filepath.Abs(repoPath)
+	if err != nil {
+		return err
+	}
+	repo, err := git.PlainOpen(repoRoot)
 	if err != nil {
 		return fmt.Errorf("failed to open repo: %w", err)
 	}
@@ -422,11 +446,32 @@ func (bp *backgroundProcessor) commitChanges(ctx context.Context, repoPath strin
 		return err
 	}
 
-	if !skipStaging {
-		if err = workTree.AddWithOptions(&git.AddOptions{All: true}); err != nil {
-			return fmt.Errorf("failed to stage changes: %w", err)
+	expected := make(map[string]struct{}, len(changedPaths))
+	for _, p := range changedPaths {
+		rel, err := toRepoRelative(repoRoot, p)
+		if err != nil {
+			return err
+		}
+		if _, err := workTree.Add(rel); err != nil {
+			return fmt.Errorf("failed to stage %s: %w", rel, err)
+		}
+		expected[rel] = struct{}{}
+	}
+
+	// Guard: only the files the providers reported may be staged.
+	status, err := workTree.Status()
+	if err != nil {
+		return fmt.Errorf("failed to read status: %w", err)
+	}
+	for p, s := range status {
+		if s.Staging == git.Unmodified || s.Staging == git.Untracked {
+			continue
+		}
+		if _, ok := expected[p]; !ok {
+			return fmt.Errorf("refusing to commit: unexpected staged change to %s", p)
 		}
 	}
+
 	_, err = workTree.Commit(fmt.Sprintf(ciCommitMsgFormat, version.String()), &git.CommitOptions{
 		Author: &object.Signature{
 			Name:  bp.ciCommmitAuthor.Name,
@@ -442,10 +487,24 @@ func (bp *backgroundProcessor) commitChanges(ctx context.Context, repoPath strin
 	if err := repo.Push(&git.PushOptions{
 		Auth:       bp.sshAuth,
 		RemoteName: bp.gitRepoOrigin,
-	}); err != nil && err != git.NoErrAlreadyUpToDate {
+	}); err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
 		return fmt.Errorf("failed to push commit: %w", err)
 	}
 	return nil
+}
+
+func toRepoRelative(root, p string) (string, error) {
+	if !filepath.IsAbs(p) {
+		return "", fmt.Errorf("path %q is not absolute", p)
+	}
+	rel, err := filepath.Rel(root, p)
+	if err != nil {
+		return "", err
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path %q is outside repo %q", p, root)
+	}
+	return filepath.ToSlash(rel), nil
 }
 
 func (bp *backgroundProcessor) tagAndPushChanges(ctx context.Context, repoPath string, version semver.Version) error {

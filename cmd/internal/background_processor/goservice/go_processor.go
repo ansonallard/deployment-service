@@ -29,7 +29,7 @@ const (
 )
 
 type GoServiceProcessor interface {
-	SetVersionFile(service *model.Service, version *semver.Version) error
+	SetVersionFile(service *model.Service, version *semver.Version) (changedPaths []string, err error)
 	BuildGoService(
 		ctx context.Context, service *model.Service, nextVersion *semver.Version,
 	) error
@@ -67,7 +67,7 @@ func NewGoServiceProcessor(config GoServiceProcessorConfig) (GoServiceProcessor,
 	}, nil
 }
 
-func (gsp *goServiceProcessor) SetVersionFile(service *model.Service, version *semver.Version) error {
+func (gsp *goServiceProcessor) SetVersionFile(service *model.Service, version *semver.Version) ([]string, error) {
 	_, span := tracer.Start(context.Background(), "go.set_version",
 		trace.WithAttributes(
 			attribute.String("service.name", service.Name.Name),
@@ -88,16 +88,19 @@ func (gsp *goServiceProcessor) SetVersionFile(service *model.Service, version *s
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("failed to find version file: %w", err)
+		return nil, fmt.Errorf("failed to find version file: %w", err)
 	}
 	if versionFilePath == "" {
-		return fmt.Errorf("version file %q not found in %q", versionFileName, service.GitRepoFilePath)
+		return nil, fmt.Errorf("version file %q not found in %q", versionFileName, service.GitRepoFilePath)
 	}
-
-	if err := os.WriteFile(versionFilePath, []byte(version.String()), 0644); err != nil {
-		return fmt.Errorf("failed to write version file: %w", err)
+	absPath, err := filepath.Abs(versionFilePath)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	if err := os.WriteFile(absPath, []byte(version.String()), 0644); err != nil {
+		return nil, fmt.Errorf("failed to write version file: %w", err)
+	}
+	return []string{absPath}, nil
 }
 
 type dockerfileTemplateData struct {

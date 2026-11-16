@@ -29,7 +29,7 @@ import (
 var tracer = otel.Tracer("deployment-service.processor.openapi")
 
 type OpenAPIProcessor interface {
-	SetOpenApiYamlVersion(service *model.Service, version *semver.Version) error
+	SetOpenApiYamlVersion(service *model.Service, version *semver.Version) (changedPaths []string, err error)
 	BuildAndDeployOpenAPIClient(
 		ctx context.Context,
 		service *model.Service,
@@ -157,7 +157,7 @@ type openAPIProcessor struct {
 	ciCommitAuthor         *utils.CiCommitAuthor
 }
 
-func (op *openAPIProcessor) SetOpenApiYamlVersion(service *model.Service, version *semver.Version) error {
+func (op *openAPIProcessor) SetOpenApiYamlVersion(service *model.Service, version *semver.Version) ([]string, error) {
 	_, span := tracer.Start(context.Background(), "openapi.set_version",
 		trace.WithAttributes(
 			attribute.String("service.name", service.Name.Name),
@@ -167,37 +167,43 @@ func (op *openAPIProcessor) SetOpenApiYamlVersion(service *model.Service, versio
 	defer span.End()
 
 	if _, err := os.Stat(service.GitRepoFilePath); err != nil {
-		return err
+		return nil, err
 	}
 
-	openApiYamlFilePath := path.Join(service.GitRepoFilePath, service.Configuration.OpenAPI.OpenAPI.YamlFile)
+	openApiYamlFilePath, err := filepath.Abs(
+		path.Join(service.GitRepoFilePath, service.Configuration.OpenAPI.OpenAPI.YamlFile),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
 	fileBytes, err := os.ReadFile(openApiYamlFilePath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Parse YAML into a Node to preserve order and formatting
 	var node yaml.Node
 	if err := yaml.Unmarshal(fileBytes, &node); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Navigate to info.version and update it
 	if err := updateVersion(&node, version); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Marshal back to YAML
 	openApiYamlBytes, err := yaml.Marshal(&node)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := os.WriteFile(openApiYamlFilePath, openApiYamlBytes, 0644); err != nil {
-		return err
+		return nil, err
 	}
-
-	return nil
+	return []string{openApiYamlFilePath}, nil
 }
 
 func updateVersion(node *yaml.Node, version *semver.Version) error {
