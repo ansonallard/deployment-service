@@ -330,7 +330,7 @@ func (bp *backgroundProcessor) hasNewCommit(ctx context.Context, service *model.
 		return false, fmt.Errorf("failed to open repo: %w", err)
 	}
 
-	if err := bp.syncToRemote(ctx, repo); err != nil {
+	if err := bp.syncToRemote(ctx, repo, bp.preservedPaths()); err != nil {
 		return false, err
 	}
 
@@ -385,9 +385,18 @@ func (bp *backgroundProcessor) hasNewCommit(ctx context.Context, service *model.
 	return !foundSemver, nil
 }
 
+// preservedPaths returns repo-relative files that must survive the hard reset
+// in syncToRemote (everything else untracked is wiped). Match whatever
+// path/envFile the env writer uses for this service.
+func (bp *backgroundProcessor) preservedPaths() []string {
+	return []string{".env"}
+}
+
 // syncToRemote makes the local checkout exactly match origin/<current branch>,
 // discarding any local modifications (e.g. generated Dockerfiles from prior builds).
-func (bp *backgroundProcessor) syncToRemote(ctx context.Context, repo *git.Repository) error {
+// Files listed in preserve (repo-relative) are snapshotted before the reset and
+// restored right after, because go-git's HardReset also deletes untracked files.
+func (bp *backgroundProcessor) syncToRemote(ctx context.Context, repo *git.Repository, preserve []string) (err error) {
 	head, err := repo.Head()
 	if err != nil {
 		return fmt.Errorf("failed to get HEAD: %w", err)
@@ -417,6 +426,19 @@ func (bp *backgroundProcessor) syncToRemote(ctx context.Context, repo *git.Repos
 	if err != nil {
 		return fmt.Errorf("failed to get worktree: %w", err)
 	}
+
+	root := wt.Filesystem.Root()
+	saved, err := snapshotFiles(root, preserve)
+	if err != nil {
+		return fmt.Errorf("failed to snapshot preserved files: %w", err)
+	}
+	// Restore even if the reset fails partway through
+	defer func() {
+		if rerr := restoreFiles(root, saved); rerr != nil {
+			err = errors.Join(err, fmt.Errorf("failed to restore preserved files: %w", rerr))
+		}
+	}()
+
 	if err := wt.Reset(&git.ResetOptions{Commit: remoteRef.Hash(), Mode: git.HardReset}); err != nil {
 		return fmt.Errorf("failed to hard reset to %s: %w", remoteRef.Hash(), err)
 	}
